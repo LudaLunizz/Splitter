@@ -20,7 +20,7 @@
     driver/ of the package and drops the certificate.
 
 .EXAMPLE
-    pwsh -File splitter/windows/build.ps1
+    pwsh -File windows/build.ps1
 #>
 [CmdletBinding()]
 param(
@@ -35,7 +35,7 @@ Set-StrictMode -Version Latest
 $here = $PSScriptRoot
 $driverDir = Join-Path $here 'driver'
 $version = (Get-Content (Join-Path $here '..\VERSION') -Raw).Trim()
-if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "splitter/VERSION must be x.y.z, not '$version'" }
+if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "VERSION must be x.y.z, not '$version'" }
 
 function Find-Tool([string] $name, [string] $under) {
     # Prefer x64 host tools; some (Inf2Cat) only come as x86.

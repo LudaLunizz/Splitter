@@ -19,7 +19,8 @@ strips' numbers:
 Windows shows each of them with the device name after it, for example
 `Splitter 3 (Splitter Virtual Cables)`.
 
-Status: **Windows only, version 0.1.0, test-signed.** Linux already gets its
+Status: **Windows only, version 0.1.0, test-signed, private (not on
+GitHub).** Linux already gets its
 cables from PipeWire (BananaSplit makes them itself), and macOS isn't
 supported yet.
 
@@ -75,7 +76,7 @@ playback to `.wav` files, and the mic-array topology.
 
 ## Building
 
-Run `pwsh -File splitter/windows/build.ps1` on Windows. It needs:
+Run `pwsh -File windows/build.ps1` on Windows. It needs:
 
 - Visual Studio 2022 or later, with the C++ desktop workload and the
   Spectre-mitigated libraries;
@@ -93,10 +94,12 @@ The script does the following:
 4. puts the result in `windows/dist/splitter-<version>-windows-x64.zip`,
    together with the installer and the licences.
 
-CI builds that package on every push (job "Splitter (Windows driver)"). The
-release workflow builds it for a `splitter-v*` tag.
+This is a private local repository with no CI of its own. The CI jobs and
+the release workflow that built this package on GitHub are in
+`bananasplit-changes.patch`, for if Splitter goes back into BananaSplit's
+repository.
 
-The version is in `splitter/VERSION`. It must also be set in `Splitter.inx`,
+The version is in `VERSION`. It must also be set in `Splitter.inx`,
 `Splitter.rc` and `Directory.Build.props`, and the build checks that all
 three match.
 
@@ -129,7 +132,8 @@ Windows 10 and 11 load a kernel driver only if Microsoft has signed it.
 
 ## Not tested yet
 
-CI can build the driver, check its INF and test the ring rules. It can't load
+The GitHub CI built the driver, checked its INF and tested the ring rules
+(`windows/tests/cablerule_test.cpp`). It can't load
 a test-signed driver, because GitHub's Windows runners can't restart into
 test mode. Before a release, check these on a real PC in test mode:
 

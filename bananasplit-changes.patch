@@ -1,0 +1,600 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 16b0c66..f284a67 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -152,6 +152,52 @@ jobs:
+           if-no-files-found: error
+           retention-days: 14
+ 
++
++  splitter-rules:
++    name: Splitter cable rules
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v4
++
++      - name: Ring and format tests
++        working-directory: splitter/windows
++        shell: bash
++        run: |
++          c++ -std=c++17 -O2 -Wall -Wextra -Werror -o "$RUNNER_TEMP/cablerule_test" tests/cablerule_test.cpp
++          "$RUNNER_TEMP/cablerule_test" | tee "$RUNNER_TEMP/cablerule.log" || {
++            grep '^FAIL' "$RUNNER_TEMP/cablerule.log" | head -n 20 | sed 's/^/::error::/'
++            exit 1
++          }
++
++  splitter-windows:
++    name: Splitter (Windows driver)
++    # The image Microsoft's Windows-driver-samples CI builds with.
++    runs-on: windows-2025-vs2026
++    steps:
++      - uses: actions/checkout@v4
++
++      - uses: microsoft/setup-msbuild@v2
++        with:
++          msbuild-architecture: x64
++
++      - name: Build, check, test-sign and package
++        shell: pwsh
++        run: |
++          try {
++            ./splitter/windows/build.ps1
++          } catch {
++            Write-Output "::error::Splitter build: $($_.Exception.Message)"
++            throw
++          }
++
++      - name: Upload package
++        uses: actions/upload-artifact@v4
++        with:
++          name: splitter-windows-x64
++          path: splitter/windows/dist/*.zip
++          if-no-files-found: error
++          retention-days: 14
++
+   windows-launch:
+     name: Windows launch
+     needs: windows
+diff --git a/.github/workflows/splitter-release.yml b/.github/workflows/splitter-release.yml
+new file mode 100644
+index 0000000..6201ebf
+--- /dev/null
++++ b/.github/workflows/splitter-release.yml
+@@ -0,0 +1,90 @@
++name: Splitter release
++
++# Splitter is released on its own: a tag splitter-v<version> (the version in
++# splitter/VERSION) builds the Windows driver package and publishes it as a
++# release of its own, apart from BananaSplit's releases.
++on:
++  push:
++    tags: ['splitter-v*']
++  workflow_dispatch:
++    inputs:
++      tag:
++        description: Existing tag to build and publish, e.g. splitter-v0.1.0
++        required: true
++
++permissions:
++  contents: read
++
++env:
++  TAG: ${{ inputs.tag || github.ref_name }}
++
++jobs:
++  windows:
++    name: Splitter for Windows
++    runs-on: windows-2025-vs2026
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          ref: ${{ env.TAG }}
++
++      - name: Check tag matches splitter/VERSION
++        shell: pwsh
++        run: |
++          $version = (Get-Content splitter/VERSION -Raw).Trim()
++          if ("splitter-v$version" -ne $env:TAG) {
++            Write-Output "::error::Tag $env:TAG does not match splitter/VERSION $version (splitter-v$version)"
++            exit 1
++          }
++
++      - uses: microsoft/setup-msbuild@v2
++        with:
++          msbuild-architecture: x64
++
++      - name: Build, check, test-sign and package
++        shell: pwsh
++        run: |
++          try {
++            ./splitter/windows/build.ps1
++          } catch {
++            Write-Output "::error::Splitter build: $($_.Exception.Message)"
++            throw
++          }
++
++      - uses: actions/upload-artifact@v4
++        with:
++          name: splitter-release-windows
++          path: splitter/windows/dist/*.zip
++          if-no-files-found: error
++
++  publish:
++    name: Publish Splitter release
++    needs: windows
++    runs-on: ubuntu-24.04
++    permissions:
++      contents: write
++    steps:
++      - uses: actions/download-artifact@v4
++        with:
++          name: splitter-release-windows
++          path: dist
++
++      - name: Write checksums
++        working-directory: dist
++        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
++
++      - name: Create release
++        env:
++          GH_TOKEN: ${{ github.token }}
++          GH_REPO: ${{ github.repository }}
++        run: |
++          # Test-signed builds go out as pre-releases (see splitter/README.md,
++          # "Signing").
++          if gh release view "$TAG" > /dev/null 2>&1; then
++            gh release upload "$TAG" dist/* --clobber
++          else
++            gh release create "$TAG" dist/* \
++              --title "Splitter ${TAG#splitter-v} (test-signed)" \
++              --notes "Six numbered virtual audio cables for BananaSplit (Splitter 1 to 6). This build is test-signed: it installs only on a PC in test-signing mode. See README.txt in the zip." \
++              --prerelease \
++              --verify-tag
++          fi
+diff --git a/README.md b/README.md
+index fdcc48e..da397c3 100644
+--- a/README.md
++++ b/README.md
+@@ -28,7 +28,7 @@
+ | Platform | Audio backend | Window |
+ | --- | --- | --- |
+ | Linux | JACK client on PipeWire's JACK layer or JACK2, PipeWire virtual cables | GTK 3 + WebKitGTK |
+-| Windows | WASAPI shared mode, VB-Audio cables | WebView2 |
++| Windows | WASAPI shared mode, Splitter or VB-Audio cables | WebView2 |
+ 
+ ## Download
+ 
+@@ -81,7 +81,7 @@ The full Linux manual covering configuration, latency tuning, VBAN and the recor
+ 
+ 1. Install the [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if it is not already present.
+ 2. Extract the zip and run `bananasplit.exe`. It is a single standalone program: no installer, no console window.
+-3. For per-channel virtual cables, install [VB-Audio CABLE](https://vb-audio.com/Cable/) (CABLE, CABLE-A … CABLE-D).
++3. For per-channel virtual cables, install [Splitter](splitter/README.md) (BananaSplit's own six numbered cables, released separately; test-signed for now) or [VB-Audio CABLE](https://vb-audio.com/Cable/) (CABLE, CABLE-A … CABLE-D).
+ 
+ BananaSplit lives in the tray: closing the window keeps the mixer running there. **Install to Start Menu** and **Start with Windows** are in the app menu.
+ 
+@@ -98,6 +98,7 @@ See [`windows/README.md`](windows/README.md) for paths and command-line options.
+ │   ├── contrib/      desktop entry, PipeWire snippets, systemd unit
+ │   └── assets/
+ ├── windows/          Windows app (Rust crate, WASAPI / WebView2)
++├── splitter/         Splitter virtual cables, packaged on their own (Windows driver)
+ ├── docs/
+ │   └── screenshots/
+ └── .github/          CI, release automation, templates
+diff --git a/windows/README.md b/windows/README.md
+index 1694c3a..3f51213 100644
+--- a/windows/README.md
++++ b/windows/README.md
+@@ -8,7 +8,7 @@ The mixer core is shared with the [Linux app](../linux/README.md). See that manu
+ 
+ - Windows 10 or 11, x64
+ - [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+-- Optional: [VB-Audio CABLE](https://vb-audio.com/Cable/) pairs (CABLE, CABLE-A … CABLE-D) for per-channel virtual cables
++- Optional: [Splitter](../splitter/README.md), BananaSplit's own six numbered cables (Splitter 1 … 6, one per input strip), and/or [VB-Audio CABLE](https://vb-audio.com/Cable/) pairs (CABLE, CABLE-A … CABLE-D) for per-channel virtual cables
+ 
+ ## Running
+ 
+@@ -69,7 +69,12 @@ From the app menu:
+ 
+ ## Virtual cables
+ 
+-Per-channel virtual cables require genuine VB-Audio cable pairs. Each installed pair is assigned to at most one channel, strips first, then buses. Without any pairs, cables are unavailable.
++Per-channel virtual cables come from two drivers:
++
++- **Splitter** (BananaSplit's own, [`splitter/`](../splitter/README.md), installed separately). Cable N belongs to input strip N: apps play into `Splitter N`, and strip N records `Splitter N Output`. The numbers never move, so switching one strip's cable off leaves the others alone. The channel menu shows `Splitter N` for each strip.
++- **VB-Audio** cable pairs. They cover the strips Splitter doesn't (none, if Splitter is installed), in strip order, and then the buses: a bus cable is how B1/B2 become a microphone in other apps, which Splitter doesn't do. Each pair is used by at most one channel.
++
++Without either, cables are unavailable. `@default` never follows Windows into a cable of either kind, because BananaSplit would then record itself.
+ 
+ Windows has no per-app stream routing like PipeWire, so device lists show WASAPI endpoints only.
+ 
+diff --git a/windows/src/win/cables.rs b/windows/src/win/cables.rs
+index 133b934..801f39e 100644
+--- a/windows/src/win/cables.rs
++++ b/windows/src/win/cables.rs
+@@ -1,4 +1,5 @@
+-//! Detection of optional VB-Audio virtual cable drivers on Windows.
++//! Detection of the optional virtual cable drivers on Windows: Splitter
++//! (BananaSplit's own) and VB-Audio's.
+ use super::route;
+ use super::wasapi::Enumerator;
+ use bananasplit::config::Config;
+@@ -9,7 +10,7 @@ pub fn installed_cables(en: &Enumerator) -> Vec<String> {
+     let mut v = Vec::new();
+     for capture in [false, true] {
+         if let Ok(devs) = en.devices(capture) {
+-            v.extend(devs.into_iter().map(|d| d.info.name).filter(|n| route::is_vb_cable(n)));
++            v.extend(devs.into_iter().map(|d| d.info.name).filter(|n| route::is_cable(n)));
+         }
+     }
+     v
+@@ -20,7 +21,7 @@ pub fn installed_cables(en: &Enumerator) -> Vec<String> {
+ pub fn first_run(en: &Enumerator, _cfg: &mut Config, _headless: bool, notes: &mut Vec<String>) -> bool {
+     let missing = installed_cables(en).is_empty();
+     if missing {
+-        notes.push(format!("VB-Audio virtual cables are not installed; install them from {VBCABLE_PAGE} to use virtual app inputs and outputs"));
++        notes.push(super::chanmenu::no_cables_text());
+     }
+     missing
+ }
+diff --git a/windows/src/win/chanmenu.rs b/windows/src/win/chanmenu.rs
+index 1ebaf26..516d124 100644
+--- a/windows/src/win/chanmenu.rs
++++ b/windows/src/win/chanmenu.rs
+@@ -1,4 +1,5 @@
+-﻿//! Windows channel menus: WASAPI devices and VB-Audio virtual cables.
++﻿//! Windows channel menus: WASAPI devices and virtual cables: BananaSplit's
++//! own (Splitter: cable N belongs to input strip N) and VB-Audio's.
+ 
+ use crate::gui::DevOp;
+ use bananasplit::config::{Config, DEFAULT_DEVICE, PHYSICAL};
+@@ -14,6 +15,8 @@ struct Plan {
+     strip_cable_label: [Option<String>; NUM_STRIPS],
+     bus_cable_label: [Option<String>; NUM_BUSES],
+     families: Vec<Family>,
++    /// Some Splitter cable is installed.
++    splitter: bool,
+     ok: bool,
+     why: String,
+ }
+@@ -63,6 +66,7 @@ fn build_plan(cfg: &Config) -> Plan {
+             strip_cable_label: Default::default(),
+             bus_cable_label: Default::default(),
+             families: vec![],
++            splitter: false,
+             ok: false,
+             why: e,
+         },
+@@ -111,17 +115,35 @@ fn build_plan_info(cfg: &Config, caps: &[route::DevInfo], rens: &[route::DevInfo
+             families.push(Family { base: b.clone(), out_friendly: o.clone(), in_friendly: i.clone() });
+         }
+     }
+-    let ok = !families.is_empty();
+-    let why = if ok { String::new() } else { format!("VB-Audio virtual cables are not installed; install them from {} to use per-channel virtual cables", crate::win::cables::VBCABLE_PAGE) };
+-    // assign: first all strips in order, then buses? priority strips then buses for the rest; default cable true for all
+     let mut used: HashSet<usize> = HashSet::new();
+     let mut strip_cable = [const { None }; NUM_STRIPS];
+     let mut bus_cable = [const { None }; NUM_BUSES];
+     let mut strip_cable_label = [const { None }; NUM_STRIPS];
+     let mut bus_cable_label = [const { None }; NUM_BUSES];
+-    // assign to strips first
++    // Splitter cable N belongs to strip N: the strip records "Splitter N
++    // Output", and apps play into "Splitter N". Numbers never move, so
++    // switching one strip's cable on or off leaves the others alone.
++    let splitter_end = |list: &[route::DevInfo], n: usize, end: route::SplitterEnd| {
++        list.iter().find(|d| route::splitter_cable(&d.name) == Some((n, end))).map(|d| d.name.clone())
++    };
++    let splitter = caps.iter().chain(rens.iter()).any(|d| route::is_splitter(&d.name));
+     for s in 0..NUM_STRIPS {
+         if !cfg.strips[s].cable { continue; }
++        let n = s + 1;
++        if let (Some(out), Some(inp)) = (
++            splitter_end(caps, n, route::SplitterEnd::Output),
++            splitter_end(rens, n, route::SplitterEnd::Input),
++        ) {
++            strip_cable[s] = Some(out);
++            strip_cable_label[s] = Some(inp);
++        }
++    }
++    let ok = splitter || !families.is_empty();
++    let why = if ok { String::new() } else { no_cables_text() };
++    // VB-Audio pairs for the strips Splitter doesn't cover, in order, then
++    // for the buses.
++    for s in 0..NUM_STRIPS {
++        if !cfg.strips[s].cable || strip_cable[s].is_some() { continue; }
+         // find free family not conflicting with explicit connects
+         for (idx,f) in families.iter().enumerate() {
+             if used.contains(&idx) { continue; }
+@@ -158,7 +180,16 @@ fn build_plan_info(cfg: &Config, caps: &[route::DevInfo], rens: &[route::DevInfo
+             break;
+         }
+     }
+-    Plan { strip_cable, bus_cable, strip_cable_label, bus_cable_label, families, ok, why }
++    Plan { strip_cable, bus_cable, strip_cable_label, bus_cable_label, families, splitter, ok, why }
++}
++
++/// What to say when no virtual cable at all is installed.
++pub fn no_cables_text() -> String {
++    format!(
++        "No virtual cables are installed. Install Splitter, BananaSplit's own cables (Splitter 1 to 6, one per input strip), from {}, or VB-CABLE from {}",
++        route::SPLITTER_PAGE,
++        crate::win::cables::VBCABLE_PAGE
++    )
+ }
+ 
+ fn json_escape(s: &str) -> String {
+@@ -353,11 +384,8 @@ fn apply_dev(cfg: &mut Config, op: DevOp) -> Result<String, String> {
+         }
+         DevOp::Cable { ch, on } => {
+             let p0 = build_plan(cfg);
+-            if on && p0.families.is_empty() {
+-                return Err(format!(
+-                    "No VB-Audio virtual cable installed. Install VB-CABLE from {} to enable per-channel cables.",
+-                    crate::win::cables::VBCABLE_PAGE
+-                ));
++            if on && !p0.ok {
++                return Err(no_cables_text());
+             }
+             if ch < NUM_STRIPS {
+                 cfg.strips[ch].cable = on;
+@@ -365,10 +393,17 @@ fn apply_dev(cfg: &mut Config, op: DevOp) -> Result<String, String> {
+                     let p2 = build_plan(cfg);
+                     if p2.strip_cable[ch].is_none() {
+                         cfg.strips[ch].cable = false;
+-                        return Err(format!(
+-                            "All {} installed VB-Audio cable pair(s) are already used. Install more (CABLE-A to CABLE-D) or switch another channel's cable off.",
+-                            p0.families.len()
+-                        ));
++                        return Err(if p0.splitter {
++                            format!(
++                                "Splitter {} is missing (renamed or disabled in the Windows sound settings?) and no VB-Audio cable pair is free.",
++                                ch + 1
++                            )
++                        } else {
++                            format!(
++                                "All {} installed VB-Audio cable pair(s) are already used. Install Splitter (one cable per strip) or more VB-Audio cables, or switch another channel's cable off.",
++                                p0.families.len()
++                            )
++                        });
+                     }
+                 }
+             } else {
+@@ -381,10 +416,14 @@ fn apply_dev(cfg: &mut Config, op: DevOp) -> Result<String, String> {
+                     let p2 = build_plan(cfg);
+                     if p2.bus_cable[b].is_none() {
+                         cfg.buses[b].cable = false;
+-                        return Err(format!(
+-                            "All {} installed VB-Audio cable pair(s) are already used. Install more (CABLE-A to CABLE-D) or switch another channel's cable off.",
+-                            p0.families.len()
+-                        ));
++                        return Err(if p0.families.is_empty() {
++                            "A bus plays into a virtual microphone through a VB-Audio cable, and none is installed (Splitter's cables are for the input strips).".to_string()
++                        } else {
++                            format!(
++                                "All {} installed VB-Audio cable pair(s) are already used. Install more (CABLE-A to CABLE-D) or switch another channel's cable off.",
++                                p0.families.len()
++                            )
++                        });
+                     }
+                 }
+             }
+diff --git a/windows/src/win/desktop.rs b/windows/src/win/desktop.rs
+index 2f1bb2c..96f2342 100644
+--- a/windows/src/win/desktop.rs
++++ b/windows/src/win/desktop.rs
+@@ -203,16 +203,17 @@ pub fn open_page(url: &str) -> Result<(), String> {
+ /// offer the download page (they are optional).
+ pub fn cable_prompt() {
+     let text = format!(
+-        "Welcome to BananaSplit.\n\nFor virtual inputs and outputs (one per channel, for apps like \
+-         Discord or OBS), BananaSplit uses the free VB-Audio virtual cables (CABLE, CABLE-A … CABLE-D). \
+-         None is installed yet. Everything else works without them.\n\n\
+-         Open the VB-Audio download page?"
++        "Welcome to BananaSplit.\n\nFor virtual inputs (apps like Discord or OBS playing into a \
++         strip), BananaSplit uses virtual cables: Splitter, its own (Splitter 1 to 6, one per \
++         input strip), or the free VB-Audio cables. None is installed yet. Everything else works \
++         without them.\n\n\
++         Open the Splitter download page?"
+     );
+     let (cap, t) = (wide("BananaSplit"), wide(&text));
+     // SAFETY: NUL-terminated UTF-16 strings.
+     let answer = unsafe { MessageBoxW(std::ptr::null_mut(), t.as_ptr(), cap.as_ptr(), MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND) };
+     if answer == IDYES {
+-        open_url(crate::win::cables::VBCABLE_PAGE);
++        open_url(crate::win::route::SPLITTER_PAGE);
+     }
+ }
+ 
+diff --git a/windows/src/win/route.rs b/windows/src/win/route.rs
+index 75d6864..95905d5 100644
+--- a/windows/src/win/route.rs
++++ b/windows/src/win/route.rs
+@@ -26,6 +26,64 @@ pub fn is_virtual(name: &str) -> bool {
+         || n.contains("voicemeeter")
+         || n.contains("virtual")
+         || n.contains("hi-fi cable")
++        || is_splitter(name)
++}
++
++/// The device name of BananaSplit's own cables, as Windows shows it after
++/// each endpoint's name: "Splitter 3 (Splitter Virtual Cables)".
++pub const SPLITTER_DEVICE: &str = "Splitter Virtual Cables";
++
++/// Where the Splitter driver is published.
++pub const SPLITTER_PAGE: &str = "https://github.com/LudaLunizz/BananaSplit/releases?q=splitter";
++
++/// The two halves of a Splitter cable.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum SplitterEnd {
++    /// "Splitter N": the playback device apps play into.
++    Input,
++    /// "Splitter N Output": the recording device strip N records.
++    Output,
++}
++
++/// Endpoints of the Splitter driver (any of its six cables).
++pub fn is_splitter(name: &str) -> bool {
++    name.to_ascii_lowercase()
++        .ends_with(&format!("({})", SPLITTER_DEVICE.to_ascii_lowercase()))
++}
++
++/// Which Splitter cable (1..=6) and which half an endpoint is, from its
++/// name: "Splitter 2 (Splitter Virtual Cables)" is cable 2's input,
++/// "Splitter 2 Output (Splitter Virtual Cables)" its output. An endpoint
++/// renamed in the Windows sound settings is still a Splitter endpoint
++/// (`is_splitter`) but no longer says which cable it is: `None`.
++pub fn splitter_cable(name: &str) -> Option<(usize, SplitterEnd)> {
++    if !is_splitter(name) {
++        return None;
++    }
++    let mut endpoint = short_name(name).trim().to_ascii_lowercase();
++    // Windows numbers endpoints whose names clash, e.g. after a reinstall
++    // left an old device behind: "2- Splitter 1 (Splitter Virtual Cables)".
++    if let Some(dash) = endpoint.find("- ") {
++        if dash > 0 && endpoint[..dash].bytes().all(|b| b.is_ascii_digit()) {
++            endpoint = endpoint[dash + 2..].to_string();
++        }
++    }
++    let rest = endpoint.strip_prefix("splitter ")?;
++    let (num, end) = match rest.strip_suffix(" output") {
++        Some(num) => (num, SplitterEnd::Output),
++        None => (rest, SplitterEnd::Input),
++    };
++    if num.is_empty() || !num.bytes().all(|b| b.is_ascii_digit()) || num.len() > 2 {
++        return None;
++    }
++    let n: usize = num.parse().ok()?;
++    (1..=6).contains(&n).then_some((n, end))
++}
++
++/// Any virtual cable BananaSplit records or plays into: VB-Audio's or its
++/// own (Splitter).
++pub fn is_cable(name: &str) -> bool {
++    is_vb_cable(name) || is_splitter(name)
+ }
+ 
+ /// True for VB-Audio cable endpoints (what the install prompt looks for).
+@@ -37,10 +95,12 @@ pub fn is_vb_cable(name: &str) -> bool {
+ /// A pattern that names a virtual cable. Missing cables are reported as
+ /// "not installed" rather than as errors (most people only have some).
+ pub fn names_cable(pattern: &str) -> bool {
+-    pattern.to_ascii_lowercase().contains("cable")
++    let p = pattern.trim().to_ascii_lowercase();
++    p.contains("cable") || p.starts_with("splitter")
+ }
+ 
+-/// The Windows default device, when it is a VB-Audio cable: `@default`
++/// The Windows default device, when it is a virtual cable (VB-Audio's or
++/// Splitter): `@default`
+ /// does not use it. BananaSplit records the cables and plays into them, so
+ /// following such a default would feed the mixer into itself. That happens
+ /// with two everyday setups: the default output set to "CABLE Input" (all
+@@ -48,7 +108,7 @@ pub fn names_cable(pattern: &str) -> bool {
+ /// records), and the default input set to "CABLE Output" (the virtual mic
+ /// for every app: the Mic strip would record what B1 plays into it).
+ pub fn default_cable<'a>(devs: &'a [DevInfo], default_id: Option<&str>) -> Option<&'a DevInfo> {
+-    default_id.and_then(|id| devs.iter().find(|d| d.id == id)).filter(|d| is_vb_cable(&d.name))
++    default_id.and_then(|id| devs.iter().find(|d| d.id == id)).filter(|d| is_cable(&d.name))
+ }
+ 
+ /// Find the device for one `connect` entry.
+@@ -58,14 +118,14 @@ pub fn resolve<'a>(
+     default_id: Option<&str>,
+ ) -> Option<&'a DevInfo> {
+     if pattern == DEFAULT_DEVICE {
+-        // Whatever Windows uses by default, unless that is a VB-Audio cable
++        // Whatever Windows uses by default, unless that is a virtual cable
+         // (see `default_cable`): then the real device `@physical` picks.
+         if default_cable(devs, default_id).is_some() {
+             return resolve(PHYSICAL, devs, default_id);
+         }
+         return default_id
+             .and_then(|id| devs.iter().find(|d| d.id == id))
+-            .or_else(|| devs.iter().find(|d| !is_vb_cable(&d.name)));
++            .or_else(|| devs.iter().find(|d| !is_cable(&d.name)));
+     }
+     if pattern == PHYSICAL {
+         let default = default_id.and_then(|id| devs.iter().find(|d| d.id == id));
+@@ -181,6 +241,61 @@ mod tests {
+         assert_eq!(resolve("usb", &d, None).unwrap().id, "id2");
+     }
+ 
++    #[test]
++    fn splitter_cables_are_numbered() {
++        assert_eq!(
++            splitter_cable("Splitter 1 (Splitter Virtual Cables)"),
++            Some((1, SplitterEnd::Input))
++        );
++        assert_eq!(
++            splitter_cable("Splitter 6 Output (Splitter Virtual Cables)"),
++            Some((6, SplitterEnd::Output))
++        );
++        // case doesn't matter, the number does
++        assert_eq!(
++            splitter_cable("SPLITTER 3 output (splitter virtual cables)"),
++            Some((3, SplitterEnd::Output))
++        );
++        assert_eq!(splitter_cable("Splitter 7 (Splitter Virtual Cables)"), None);
++        assert_eq!(splitter_cable("Splitter 0 Output (Splitter Virtual Cables)"), None);
++        assert_eq!(splitter_cable("Splitter 1x (Splitter Virtual Cables)"), None);
++        // Windows' prefix for clashing names doesn't hide the number
++        assert_eq!(
++            splitter_cable("2- Splitter 5 Output (Splitter Virtual Cables)"),
++            Some((5, SplitterEnd::Output))
++        );
++        // renamed in the sound settings: still a Splitter endpoint, no number
++        assert!(is_splitter("Discord out (Splitter Virtual Cables)"));
++        assert_eq!(splitter_cable("Discord out (Splitter Virtual Cables)"), None);
++        // someone else's device that happens to be called Splitter
++        assert!(!is_splitter("Splitter 1 (USB Audio Splitter)"));
++        assert_eq!(splitter_cable("Splitter 1 (USB Audio Splitter)"), None);
++        // Splitter endpoints are virtual cables
++        assert!(is_virtual("Splitter 2 (Splitter Virtual Cables)"));
++        assert!(is_cable("Splitter 2 Output (Splitter Virtual Cables)"));
++        assert!(names_cable("Splitter 4"));
++        assert_eq!(short_name("Splitter 4 Output (Splitter Virtual Cables)"), "Splitter 4 Output");
++    }
++
++    #[test]
++    fn default_never_follows_windows_into_splitter() {
++        // default output "Splitter 1" (all desktop sound into strip 1): A1
++        // plays on the speakers, not back into the cable strip 1 records
++        let outs = devs(&["Splitter 1 (Splitter Virtual Cables)", "Speakers (Realtek(R) Audio)"]);
++        assert_eq!(resolve(DEFAULT_DEVICE, &outs, Some("id0")).unwrap().id, "id1");
++        assert_eq!(default_cable(&outs, Some("id0")).unwrap().id, "id0");
++        assert_eq!(resolve(PHYSICAL, &outs, Some("id0")).unwrap().id, "id1");
++        // default input a Splitter output: the Mic strip records the mic
++        let ins = devs(&["Splitter 1 Output (Splitter Virtual Cables)", "Microphone (USB Mic)"]);
++        assert_eq!(resolve(DEFAULT_DEVICE, &ins, Some("id0")).unwrap().id, "id1");
++        // a numbered pattern finds exactly its cable
++        let all = devs(&[
++            "Splitter 1 Output (Splitter Virtual Cables)",
++            "Splitter 2 Output (Splitter Virtual Cables)",
++        ]);
++        assert_eq!(resolve("Splitter 2 Output", &all, None).unwrap().id, "id1");
++    }
++
+     #[test]
+     fn classification() {
+         assert!(is_vb_cable("CABLE Output (VB-Audio Virtual Cable)"));
+diff --git a/windows/src/win/wasapi.rs b/windows/src/win/wasapi.rs
+index cf45af0..adb7c94 100644
+--- a/windows/src/win/wasapi.rs
++++ b/windows/src/win/wasapi.rs
+@@ -440,7 +440,15 @@ impl Graph {
+                         if !idx.contains(&i) {
+                             idx.push(i);
+                             shown.push(route::short_name(&d.name).to_string());
+-                            if route::is_vb_cable(&d.name) {
++                            if let (true, Some((n, route::SplitterEnd::Input))) =
++                                (row.starts_with("bus "), route::splitter_cable(&d.name))
++                            {
++                                errs.push(format!(
++                                    "{row} plays into Splitter {n}, which strip {n} records: route strip {n} away from {} or it feeds back",
++                                    &row[4..]
++                                ));
++                            }
++                            if route::is_cable(&d.name) {
+                                 cables.insert(
+                                     route::short_name(&d.name)
+                                         .replace(" Input", "")
