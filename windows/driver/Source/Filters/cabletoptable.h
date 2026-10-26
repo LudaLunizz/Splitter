@@ -1,15 +1,21 @@
 /*++
 
-Splitter: topology filters of the six cables.
+Splitter: topology filters of the eleven cables.
 
 Derived from speakertoptable.h and micarray1toptable.h of Microsoft's
 SimpleAudioSample (Copyright (c) Microsoft Corporation, MS-PL; see
 LICENSE-MS-PL.txt).
 
-Each cable has two topology filters:
+Each cable has two topology filters. A strip's cable (1..6):
 
-  render  (apps play into it):   [0 from wave] ---> [1 line out "Splitter N"]
+  render  (apps play into it):    [0 from wave] ---> [1 speaker "Splitter N"]
   capture (BananaSplit reads it): [0 line in "Splitter N Output"] ---> [1 to wave]
+
+A bus's cable (7..11, buses A1..B2) is the other way round, so its capture
+connector is a microphone:
+
+  render  (BananaSplit plays into it): [0 from wave] ---> [1 speaker "Splitter B1 Input"]
+  capture (apps record it):            [0 microphone "Splitter B1"] ---> [1 to wave]
 
 There are no volume or mute nodes: Windows then gives every endpoint a
 software volume of its own, which is all a cable needs.
@@ -130,7 +136,7 @@ PCCONNECTION_DESCRIPTOR CableCaptureTopoConnections[] =
 };
 
 //=============================================================================
-// One render topology filter per cable: N = 1..6.
+// One render topology filter per cable: N = 1..11.
 //
 #define SPLITTER_RENDER_TOPO(N)                                                 \
 static                                                                          \
@@ -150,7 +156,7 @@ PCPIN_DESCRIPTOR CableRender##N##TopoPins[] =                                   
       0                                                                         \
     }                                                                           \
   },                                                                            \
-  /* KSPIN_TOPO_LINEOUT_DEST: the connector, named "Splitter N" */              \
+  /* KSPIN_TOPO_LINEOUT_DEST: the connector, "Splitter N" or "Splitter B1 Input" */\
   {                                                                             \
     0, 0, 0, NULL,                                                              \
     {                                                                           \
@@ -184,13 +190,16 @@ PCFILTER_DESCRIPTOR CableRender##N##TopoFilterDescriptor =                      
 };
 
 //=============================================================================
-// One capture topology filter per cable: N = 1..6.
+// One capture topology filter per cable: N = 1..11. CONNECTOR is the node type
+// of its connector pin: a line in for the strips' cables, which only
+// BananaSplit records, and a microphone for the buses' cables, which apps
+// record.
 //
-#define SPLITTER_CAPTURE_TOPO(N)                                                \
+#define SPLITTER_CAPTURE_TOPO(N, CONNECTOR)                                     \
 static                                                                          \
 PCPIN_DESCRIPTOR CableCapture##N##TopoPins[] =                                  \
 {                                                                               \
-  /* KSPIN_TOPO_MIC_ELEMENTS: the connector, named "Splitter N Output" */       \
+  /* KSPIN_TOPO_MIC_ELEMENTS: the connector, "Splitter N Output" or "Splitter B1" */\
   {                                                                             \
     0, 0, 0, NULL,                                                              \
     {                                                                           \
@@ -199,7 +208,7 @@ PCPIN_DESCRIPTOR CableCapture##N##TopoPins[] =                                  
       CableTopoPinDataRangePointersBridge,                                      \
       KSPIN_DATAFLOW_IN,                                                        \
       KSPIN_COMMUNICATION_NONE,                                                 \
-      &KSNODETYPE_LINE_CONNECTOR,                                               \
+      &CONNECTOR,                                                               \
       &NAME_SPLITTER_CAPTURE##N,                                                \
       0                                                                         \
     }                                                                           \
@@ -243,12 +252,22 @@ SPLITTER_RENDER_TOPO(3)
 SPLITTER_RENDER_TOPO(4)
 SPLITTER_RENDER_TOPO(5)
 SPLITTER_RENDER_TOPO(6)
+SPLITTER_RENDER_TOPO(7)     // A1
+SPLITTER_RENDER_TOPO(8)     // A2
+SPLITTER_RENDER_TOPO(9)     // A3
+SPLITTER_RENDER_TOPO(10)    // B1
+SPLITTER_RENDER_TOPO(11)    // B2
 
-SPLITTER_CAPTURE_TOPO(1)
-SPLITTER_CAPTURE_TOPO(2)
-SPLITTER_CAPTURE_TOPO(3)
-SPLITTER_CAPTURE_TOPO(4)
-SPLITTER_CAPTURE_TOPO(5)
-SPLITTER_CAPTURE_TOPO(6)
+SPLITTER_CAPTURE_TOPO(1, KSNODETYPE_LINE_CONNECTOR)
+SPLITTER_CAPTURE_TOPO(2, KSNODETYPE_LINE_CONNECTOR)
+SPLITTER_CAPTURE_TOPO(3, KSNODETYPE_LINE_CONNECTOR)
+SPLITTER_CAPTURE_TOPO(4, KSNODETYPE_LINE_CONNECTOR)
+SPLITTER_CAPTURE_TOPO(5, KSNODETYPE_LINE_CONNECTOR)
+SPLITTER_CAPTURE_TOPO(6, KSNODETYPE_LINE_CONNECTOR)
+SPLITTER_CAPTURE_TOPO(7, KSNODETYPE_MICROPHONE)     // A1
+SPLITTER_CAPTURE_TOPO(8, KSNODETYPE_MICROPHONE)     // A2
+SPLITTER_CAPTURE_TOPO(9, KSNODETYPE_MICROPHONE)     // A3
+SPLITTER_CAPTURE_TOPO(10, KSNODETYPE_MICROPHONE)    // B1
+SPLITTER_CAPTURE_TOPO(11, KSNODETYPE_MICROPHONE)    // B2
 
 #endif // _SPLITTER_CABLETOPTABLE_H_

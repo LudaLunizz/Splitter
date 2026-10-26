@@ -1,0 +1,90 @@
+name: Release
+
+# A tag v<version> (the version in VERSION) builds the Windows driver
+# package and publishes it as a release. BananaSplit's "Splitter download
+# page" button opens this repository's releases.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish, e.g. v0.2.0
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    name: Splitter for Windows
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Check tag matches VERSION
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ("v$version" -ne $env:TAG) {
+            Write-Output "::error::Tag $env:TAG does not match VERSION $version (v$version)"
+            exit 1
+          }
+
+      - uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build, check, test-sign and package
+        shell: pwsh
+        run: |
+          try {
+            ./windows/build.ps1
+          } catch {
+            Write-Output "::error::Splitter build: $($_.Exception.Message)"
+            throw
+          }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: splitter-release-windows
+          path: windows/dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: windows
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: splitter-release-windows
+          path: dist
+
+      - name: Write checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # Test-signed builds go out as pre-releases (see README.md,
+          # "Signing").
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --title "Splitter ${TAG#v} (test-signed)" \
+              --notes "BananaSplit's own virtual cables, one for each of its eleven channels (Splitter 1 to 6 for the strips, Splitter A1 to B2 for the buses). This build is test-signed: it installs only on a PC in test-signing mode. See README.txt in the zip." \
+              --prerelease \
+              --verify-tag
+          fi

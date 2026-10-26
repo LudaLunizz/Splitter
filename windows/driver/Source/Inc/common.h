@@ -121,12 +121,17 @@ Abstract:
 #define MINADAPTER_POOLTAG          'aSpS'
 
 //
-// Splitter: six cables. Cable N (1..6) is a render endpoint "Splitter N"
-// that apps play into and a capture endpoint "Splitter N Output" that
-// BananaSplit's input strip N records. The two halves of a cable share one
-// ring buffer (see cablering.h).
+// Splitter: eleven cables, one for each BananaSplit channel. A cable is a
+// render endpoint (a playback device) and a capture endpoint (a recording
+// device); the two halves share one ring buffer (see cablering.h).
 //
-#define SPLITTER_CABLE_COUNT        6
+//   Cables 1..6 belong to input strips 1..6: apps play into "Splitter N",
+//   and strip N records "Splitter N Output".
+//   Cables 7..11 belong to buses A1, A2, A3, B1, B2: the bus plays into
+//   "Splitter B1 Input" (say), and apps record "Splitter B1" as their
+//   microphone.
+//
+#define SPLITTER_CABLE_COUNT        11
 
 typedef enum
 {
@@ -136,12 +141,22 @@ typedef enum
     eCableRender4,
     eCableRender5,
     eCableRender6,
+    eCableRender7,
+    eCableRender8,
+    eCableRender9,
+    eCableRender10,
+    eCableRender11,
     eCableCapture1,
     eCableCapture2,
     eCableCapture3,
     eCableCapture4,
     eCableCapture5,
     eCableCapture6,
+    eCableCapture7,
+    eCableCapture8,
+    eCableCapture9,
+    eCableCapture10,
+    eCableCapture11,
     eMaxDeviceType,
 } eDeviceType;
 

@@ -6,10 +6,10 @@
   <Import Project="packages\Microsoft.Windows.SDK.CPP.10.0.28000.2526\build\native\Microsoft.Windows.SDK.cpp.props" Condition="Exists('packages\Microsoft.Windows.SDK.CPP.10.0.28000.2526\build\native\Microsoft.Windows.SDK.cpp.props')" />
 
   <!-- The driver version stamped into splitter.inf (DriverVer). Keep in step
-       with splitter/VERSION and Source/Main/Splitter.rc. -->
+       with VERSION and Source/Main/Splitter.rc. -->
   <ItemDefinitionGroup>
     <Inf>
-      <TimeStamp>0.1.0.0</TimeStamp>
+      <TimeStamp>0.2.0.0</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
 </Project>

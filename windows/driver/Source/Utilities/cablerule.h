@@ -8,7 +8,7 @@ kernel code so they are unit-tested on any computer (tests/cablerule_test.cpp):
   - conversion between the halves' sample formats and the ring's 32-bit
     float.
 
-Copyright (c) the BananaSplit authors. MIT licence (see splitter/LICENSE).
+Copyright (c) the BananaSplit authors. MIT licence (see LICENSE).
 
 Needs ULONG (32-bit), ULONGLONG (64-bit), UCHAR, BOOLEAN, FLOAT, TRUE/FALSE
 and memcpy before it is included.
@@ -17,8 +17,9 @@ and memcpy before it is included.
 #ifndef _SPLITTER_CABLERULE_H_
 #define _SPLITTER_CABLERULE_H_
 
-// Six cables; SPLITTER_CABLE_COUNT in common.h is checked against this.
-#define CABLE_RING_COUNT            6
+// Eleven cables, one per BananaSplit channel; SPLITTER_CABLE_COUNT in
+// common.h is checked against this.
+#define CABLE_RING_COUNT            11
 
 #define CABLE_RING_CHANNELS         2
 

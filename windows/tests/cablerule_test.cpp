@@ -4,7 +4,7 @@
 //
 //   c++ -std=c++17 -O2 -Wall -o cablerule_test tests/cablerule_test.cpp && ./cablerule_test
 //
-// Copyright (c) the BananaSplit authors. MIT licence (see splitter/LICENSE).
+// Copyright (c) the BananaSplit authors. MIT licence (see LICENSE).
 
 #include <cstdint>
 #include <cstring>

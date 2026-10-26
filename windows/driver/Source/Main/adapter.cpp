@@ -236,7 +236,7 @@ Return Value:
         Done);
 
     //
-    // Splitter: the six cables' ring buffers.
+    // Splitter: the cables' ring buffers (SPLITTER_CABLE_COUNT).
     //
     ntStatus = CableRingsInit();
     IF_FAILED_ACTION_JUMP(

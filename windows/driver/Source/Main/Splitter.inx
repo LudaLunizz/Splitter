@@ -1,9 +1,14 @@
 ;
-; Splitter: six numbered virtual audio cables for BananaSplit.
+; Splitter: BananaSplit's own virtual cables, one for each of its eleven
+; channels.
 ;
-; Cable N is two endpoints: "Splitter N" (a playback device apps play into)
-; and "Splitter N Output" (a recording device; BananaSplit's input strip N
-; records it).
+; Cables 1..6 belong to input strips 1..6. Cable N is two endpoints:
+; "Splitter N" (a playback device apps play into) and "Splitter N Output"
+; (a recording device; BananaSplit's input strip N records it).
+;
+; Cables 7..11 belong to buses A1, A2, A3, B1 and B2, the other way round:
+; "Splitter B1 Input" (say; a playback device that bus B1 plays into) and
+; "Splitter B1" (a recording device: apps pick it as their microphone).
 ;
 ; Derived from SimpleAudioSample.inx of Microsoft's Windows-driver-samples
 ; (Copyright (c) Microsoft Corporation, MS-PL; see LICENSE-MS-PL.txt).
@@ -17,7 +22,7 @@ Signature   = "$Windows NT$"
 Class       = MEDIA
 Provider    = %ProviderName%
 ClassGUID   = {4d36e96c-e325-11ce-bfc1-08002be10318}
-DriverVer   = 10/25/2026,0.1.0.0
+DriverVer   = 10/26/2026,0.2.0.0
 CatalogFile = splitter.cat
 PnpLockDown = 1
 
@@ -84,6 +89,26 @@ HKR,MediaCategories\%Render6NameGUID%,Name,,%Render6Name%
 HKR,MediaCategories\%Render6NameGUID%,Display,1,00,00,00,00
 HKR,MediaCategories\%Capture6NameGUID%,Name,,%Capture6Name%
 HKR,MediaCategories\%Capture6NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Render7NameGUID%,Name,,%Render7Name%
+HKR,MediaCategories\%Render7NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Capture7NameGUID%,Name,,%Capture7Name%
+HKR,MediaCategories\%Capture7NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Render8NameGUID%,Name,,%Render8Name%
+HKR,MediaCategories\%Render8NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Capture8NameGUID%,Name,,%Capture8Name%
+HKR,MediaCategories\%Capture8NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Render9NameGUID%,Name,,%Render9Name%
+HKR,MediaCategories\%Render9NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Capture9NameGUID%,Name,,%Capture9Name%
+HKR,MediaCategories\%Capture9NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Render10NameGUID%,Name,,%Render10Name%
+HKR,MediaCategories\%Render10NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Capture10NameGUID%,Name,,%Capture10Name%
+HKR,MediaCategories\%Capture10NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Render11NameGUID%,Name,,%Render11Name%
+HKR,MediaCategories\%Render11NameGUID%,Display,1,00,00,00,00
+HKR,MediaCategories\%Capture11NameGUID%,Name,,%Capture11Name%
+HKR,MediaCategories\%Capture11NameGUID%,Display,1,00,00,00,00
 
 ;======================================================
 ; render interfaces: cable 1
@@ -201,6 +226,106 @@ AddReg = SPLITTER.I.TopologyRender6.AddReg
 [SPLITTER.I.TopologyRender6.AddReg]
 HKR,,CLSID,,%Proxy.CLSID%
 HKR,,FriendlyName,,%Render6Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; render interfaces: cable 7 (bus A1)
+;======================================================
+[SPLITTER.I.WaveRender7]
+AddReg = SPLITTER.I.WaveRender7.AddReg
+
+[SPLITTER.I.WaveRender7.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render7Name%
+
+[SPLITTER.I.TopologyRender7]
+AddReg = SPLITTER.I.TopologyRender7.AddReg
+
+[SPLITTER.I.TopologyRender7.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render7Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; render interfaces: cable 8 (bus A2)
+;======================================================
+[SPLITTER.I.WaveRender8]
+AddReg = SPLITTER.I.WaveRender8.AddReg
+
+[SPLITTER.I.WaveRender8.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render8Name%
+
+[SPLITTER.I.TopologyRender8]
+AddReg = SPLITTER.I.TopologyRender8.AddReg
+
+[SPLITTER.I.TopologyRender8.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render8Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; render interfaces: cable 9 (bus A3)
+;======================================================
+[SPLITTER.I.WaveRender9]
+AddReg = SPLITTER.I.WaveRender9.AddReg
+
+[SPLITTER.I.WaveRender9.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render9Name%
+
+[SPLITTER.I.TopologyRender9]
+AddReg = SPLITTER.I.TopologyRender9.AddReg
+
+[SPLITTER.I.TopologyRender9.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render9Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; render interfaces: cable 10 (bus B1)
+;======================================================
+[SPLITTER.I.WaveRender10]
+AddReg = SPLITTER.I.WaveRender10.AddReg
+
+[SPLITTER.I.WaveRender10.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render10Name%
+
+[SPLITTER.I.TopologyRender10]
+AddReg = SPLITTER.I.TopologyRender10.AddReg
+
+[SPLITTER.I.TopologyRender10.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render10Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; render interfaces: cable 11 (bus B2)
+;======================================================
+[SPLITTER.I.WaveRender11]
+AddReg = SPLITTER.I.WaveRender11.AddReg
+
+[SPLITTER.I.WaveRender11.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render11Name%
+
+[SPLITTER.I.TopologyRender11]
+AddReg = SPLITTER.I.TopologyRender11.AddReg
+
+[SPLITTER.I.TopologyRender11.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Render11Name%
 HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
 ; Opt in to pull (event-driven) mode.
 HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
@@ -326,6 +451,106 @@ HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
 HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
 
 ;======================================================
+; capture interfaces: cable 7 (bus A1)
+;======================================================
+[SPLITTER.I.WaveCapture7]
+AddReg = SPLITTER.I.WaveCapture7.AddReg
+
+[SPLITTER.I.WaveCapture7.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture7Name%
+
+[SPLITTER.I.TopologyCapture7]
+AddReg = SPLITTER.I.TopologyCapture7.AddReg
+
+[SPLITTER.I.TopologyCapture7.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture7Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; capture interfaces: cable 8 (bus A2)
+;======================================================
+[SPLITTER.I.WaveCapture8]
+AddReg = SPLITTER.I.WaveCapture8.AddReg
+
+[SPLITTER.I.WaveCapture8.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture8Name%
+
+[SPLITTER.I.TopologyCapture8]
+AddReg = SPLITTER.I.TopologyCapture8.AddReg
+
+[SPLITTER.I.TopologyCapture8.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture8Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; capture interfaces: cable 9 (bus A3)
+;======================================================
+[SPLITTER.I.WaveCapture9]
+AddReg = SPLITTER.I.WaveCapture9.AddReg
+
+[SPLITTER.I.WaveCapture9.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture9Name%
+
+[SPLITTER.I.TopologyCapture9]
+AddReg = SPLITTER.I.TopologyCapture9.AddReg
+
+[SPLITTER.I.TopologyCapture9.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture9Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; capture interfaces: cable 10 (bus B1)
+;======================================================
+[SPLITTER.I.WaveCapture10]
+AddReg = SPLITTER.I.WaveCapture10.AddReg
+
+[SPLITTER.I.WaveCapture10.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture10Name%
+
+[SPLITTER.I.TopologyCapture10]
+AddReg = SPLITTER.I.TopologyCapture10.AddReg
+
+[SPLITTER.I.TopologyCapture10.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture10Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
+; capture interfaces: cable 11 (bus B2)
+;======================================================
+[SPLITTER.I.WaveCapture11]
+AddReg = SPLITTER.I.WaveCapture11.AddReg
+
+[SPLITTER.I.WaveCapture11.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture11Name%
+
+[SPLITTER.I.TopologyCapture11]
+AddReg = SPLITTER.I.TopologyCapture11.AddReg
+
+[SPLITTER.I.TopologyCapture11.AddReg]
+HKR,,CLSID,,%Proxy.CLSID%
+HKR,,FriendlyName,,%Capture11Name%
+HKR,EP\0,%PKEY_AudioEndpoint_Association%,,%KSNODETYPE_ANY%
+; Opt in to pull (event-driven) mode.
+HKR,EP\0,%PKEY_AudioEndpoint_Supports_EventDriven_Mode%,0x00010001,0x1
+
+;======================================================
 ; SPLITTER_SA
 ;======================================================
 [SPLITTER_SA.NT]
@@ -407,6 +632,66 @@ AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveCapture6%,     SPLITTER.I.Wave
 AddInterface = %KSCATEGORY_CAPTURE%,  %KSNAME_WaveCapture6%,     SPLITTER.I.WaveCapture6
 AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyCapture6%, SPLITTER.I.TopologyCapture6
 AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyCapture6%, SPLITTER.I.TopologyCapture6
+; cable 7: "Splitter A1 Input" (playback; bus A1 plays into it)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveRender7%,     SPLITTER.I.WaveRender7
+AddInterface = %KSCATEGORY_RENDER%,   %KSNAME_WaveRender7%,     SPLITTER.I.WaveRender7
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveRender7%,     SPLITTER.I.WaveRender7
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyRender7%, SPLITTER.I.TopologyRender7
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyRender7%, SPLITTER.I.TopologyRender7
+; cable 7: "Splitter A1" (recording; a microphone for apps)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveCapture7%,     SPLITTER.I.WaveCapture7
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveCapture7%,     SPLITTER.I.WaveCapture7
+AddInterface = %KSCATEGORY_CAPTURE%,  %KSNAME_WaveCapture7%,     SPLITTER.I.WaveCapture7
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyCapture7%, SPLITTER.I.TopologyCapture7
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyCapture7%, SPLITTER.I.TopologyCapture7
+; cable 8: "Splitter A2 Input" (playback; bus A2 plays into it)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveRender8%,     SPLITTER.I.WaveRender8
+AddInterface = %KSCATEGORY_RENDER%,   %KSNAME_WaveRender8%,     SPLITTER.I.WaveRender8
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveRender8%,     SPLITTER.I.WaveRender8
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyRender8%, SPLITTER.I.TopologyRender8
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyRender8%, SPLITTER.I.TopologyRender8
+; cable 8: "Splitter A2" (recording; a microphone for apps)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveCapture8%,     SPLITTER.I.WaveCapture8
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveCapture8%,     SPLITTER.I.WaveCapture8
+AddInterface = %KSCATEGORY_CAPTURE%,  %KSNAME_WaveCapture8%,     SPLITTER.I.WaveCapture8
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyCapture8%, SPLITTER.I.TopologyCapture8
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyCapture8%, SPLITTER.I.TopologyCapture8
+; cable 9: "Splitter A3 Input" (playback; bus A3 plays into it)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveRender9%,     SPLITTER.I.WaveRender9
+AddInterface = %KSCATEGORY_RENDER%,   %KSNAME_WaveRender9%,     SPLITTER.I.WaveRender9
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveRender9%,     SPLITTER.I.WaveRender9
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyRender9%, SPLITTER.I.TopologyRender9
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyRender9%, SPLITTER.I.TopologyRender9
+; cable 9: "Splitter A3" (recording; a microphone for apps)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveCapture9%,     SPLITTER.I.WaveCapture9
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveCapture9%,     SPLITTER.I.WaveCapture9
+AddInterface = %KSCATEGORY_CAPTURE%,  %KSNAME_WaveCapture9%,     SPLITTER.I.WaveCapture9
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyCapture9%, SPLITTER.I.TopologyCapture9
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyCapture9%, SPLITTER.I.TopologyCapture9
+; cable 10: "Splitter B1 Input" (playback; bus B1 plays into it)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveRender10%,     SPLITTER.I.WaveRender10
+AddInterface = %KSCATEGORY_RENDER%,   %KSNAME_WaveRender10%,     SPLITTER.I.WaveRender10
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveRender10%,     SPLITTER.I.WaveRender10
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyRender10%, SPLITTER.I.TopologyRender10
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyRender10%, SPLITTER.I.TopologyRender10
+; cable 10: "Splitter B1" (recording; a microphone for apps)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveCapture10%,     SPLITTER.I.WaveCapture10
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveCapture10%,     SPLITTER.I.WaveCapture10
+AddInterface = %KSCATEGORY_CAPTURE%,  %KSNAME_WaveCapture10%,     SPLITTER.I.WaveCapture10
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyCapture10%, SPLITTER.I.TopologyCapture10
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyCapture10%, SPLITTER.I.TopologyCapture10
+; cable 11: "Splitter B2 Input" (playback; bus B2 plays into it)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveRender11%,     SPLITTER.I.WaveRender11
+AddInterface = %KSCATEGORY_RENDER%,   %KSNAME_WaveRender11%,     SPLITTER.I.WaveRender11
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveRender11%,     SPLITTER.I.WaveRender11
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyRender11%, SPLITTER.I.TopologyRender11
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyRender11%, SPLITTER.I.TopologyRender11
+; cable 11: "Splitter B2" (recording; a microphone for apps)
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_WaveCapture11%,     SPLITTER.I.WaveCapture11
+AddInterface = %KSCATEGORY_REALTIME%, %KSNAME_WaveCapture11%,     SPLITTER.I.WaveCapture11
+AddInterface = %KSCATEGORY_CAPTURE%,  %KSNAME_WaveCapture11%,     SPLITTER.I.WaveCapture11
+AddInterface = %KSCATEGORY_AUDIO%,    %KSNAME_TopologyCapture11%, SPLITTER.I.TopologyCapture11
+AddInterface = %KSCATEGORY_TOPOLOGY%, %KSNAME_TopologyCapture11%, SPLITTER.I.TopologyCapture11
 
 [SPLITTER_SA.NT.Services]
 AddService = Splitter,0x00000002,Splitter_Service_Inst
@@ -454,6 +739,16 @@ KSNAME_WaveRender5="WaveRender5"
 KSNAME_TopologyRender5="TopologyRender5"
 KSNAME_WaveRender6="WaveRender6"
 KSNAME_TopologyRender6="TopologyRender6"
+KSNAME_WaveRender7="WaveRender7"
+KSNAME_TopologyRender7="TopologyRender7"
+KSNAME_WaveRender8="WaveRender8"
+KSNAME_TopologyRender8="TopologyRender8"
+KSNAME_WaveRender9="WaveRender9"
+KSNAME_TopologyRender9="TopologyRender9"
+KSNAME_WaveRender10="WaveRender10"
+KSNAME_TopologyRender10="TopologyRender10"
+KSNAME_WaveRender11="WaveRender11"
+KSNAME_TopologyRender11="TopologyRender11"
 KSNAME_WaveCapture1="WaveCapture1"
 KSNAME_TopologyCapture1="TopologyCapture1"
 KSNAME_WaveCapture2="WaveCapture2"
@@ -466,6 +761,16 @@ KSNAME_WaveCapture5="WaveCapture5"
 KSNAME_TopologyCapture5="TopologyCapture5"
 KSNAME_WaveCapture6="WaveCapture6"
 KSNAME_TopologyCapture6="TopologyCapture6"
+KSNAME_WaveCapture7="WaveCapture7"
+KSNAME_TopologyCapture7="TopologyCapture7"
+KSNAME_WaveCapture8="WaveCapture8"
+KSNAME_TopologyCapture8="TopologyCapture8"
+KSNAME_WaveCapture9="WaveCapture9"
+KSNAME_TopologyCapture9="TopologyCapture9"
+KSNAME_WaveCapture10="WaveCapture10"
+KSNAME_TopologyCapture10="TopologyCapture10"
+KSNAME_WaveCapture11="WaveCapture11"
+KSNAME_TopologyCapture11="TopologyCapture11"
 
 Render1NameGUID="{1A780B41-2D47-48FD-A360-8633736A1A65}"
 Render2NameGUID="{411FEA45-CE4B-4ACD-BE45-CDF1E3ECCE8D}"
@@ -473,12 +778,22 @@ Render3NameGUID="{62CDB6C3-4AFC-4A3A-B060-EDD7023FDD0E}"
 Render4NameGUID="{9832CDA0-1D2C-435B-899A-AEB2A3AFC2C5}"
 Render5NameGUID="{457CDADF-70A7-40B7-B6A8-89C4AFD7CCA4}"
 Render6NameGUID="{3B9680EF-6546-4E4C-9CB5-60B858A49AAE}"
+Render7NameGUID="{9A3FD559-F225-4567-BD93-D0263591859E}"
+Render8NameGUID="{1E6EF760-AE27-4026-97C9-EEAA33AE041C}"
+Render9NameGUID="{1FAD6D2A-8C72-49BE-BDBF-FEBC6C12CB22}"
+Render10NameGUID="{4BD119DD-4A8E-43E6-B757-8908DFECFDE8}"
+Render11NameGUID="{7BD083BD-3D3F-4FED-9F69-BBDAF69BFCAF}"
 Capture1NameGUID="{639F53EE-7655-45F0-9D41-74AF077DD74C}"
 Capture2NameGUID="{94ED654B-1C92-4057-B296-436A5C66785A}"
 Capture3NameGUID="{CA8CFC11-7DE1-41FC-AC40-11ECC9191B15}"
 Capture4NameGUID="{4E018CCC-EC32-49AB-843E-0B232149A3A7}"
 Capture5NameGUID="{A58DFA00-A898-470B-B08F-587042CE0943}"
 Capture6NameGUID="{CD00E8E1-AA6E-42D7-894A-7E8E9568AC9A}"
+Capture7NameGUID="{94418E51-CD16-4EF9-9017-4B15C8549DEF}"
+Capture8NameGUID="{DA73F8C4-C91C-47DA-8D9B-17217072A031}"
+Capture9NameGUID="{B75BAF61-47CA-4229-AF3B-A06AC1450D68}"
+Capture10NameGUID="{E027D191-6615-48FC-BFBA-E69B66305AA7}"
+Capture11NameGUID="{ABE63E7C-A285-4CEA-8A15-CAACEBB6817F}"
 
 Proxy.CLSID="{17CCA71B-ECD7-11D0-B908-00A0C9223196}"
 KSCATEGORY_AUDIO="{6994AD04-93EF-11D0-A3CC-00A0C9223196}"
@@ -498,10 +813,10 @@ ProviderName = "BananaSplit"
 MfgName      = "BananaSplit"
 DiskName     = "Splitter Driver Disk"
 
-SPLITTER_SA.DeviceDesc = "Splitter Virtual Cables"
-Splitter.SvcDesc       = "Splitter Virtual Cables (BananaSplit)"
+SPLITTER_SA.DeviceDesc = "Splitter Cables"
+Splitter.SvcDesc       = "Splitter Cables (BananaSplit)"
 
-;; endpoint names
+;; endpoint names: the strips' cables, then the buses' (A1, A2, A3, B1, B2)
 Render1Name  = "Splitter 1"
 Capture1Name = "Splitter 1 Output"
 Render2Name  = "Splitter 2"
@@ -514,3 +829,13 @@ Render5Name  = "Splitter 5"
 Capture5Name = "Splitter 5 Output"
 Render6Name  = "Splitter 6"
 Capture6Name = "Splitter 6 Output"
+Render7Name  = "Splitter A1 Input"
+Capture7Name = "Splitter A1"
+Render8Name  = "Splitter A2 Input"
+Capture8Name = "Splitter A2"
+Render9Name  = "Splitter A3 Input"
+Capture9Name = "Splitter A3"
+Render10Name  = "Splitter B1 Input"
+Capture10Name = "Splitter B1"
+Render11Name  = "Splitter B2 Input"
+Capture11Name = "Splitter B2"

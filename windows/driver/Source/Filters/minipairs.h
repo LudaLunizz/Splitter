@@ -1,7 +1,8 @@
 /*++
 
-Splitter: the twelve endpoints (six cables, a render and a capture half
-each).
+Splitter: the twenty-two endpoints (eleven cables, a render and a capture
+half each). Cables 1..6 belong to the input strips, 7..11 to buses A1, A2,
+A3, B1, B2 (see common.h).
 
 Derived from minipairs.h of Microsoft's SimpleAudioSample
 (Copyright (c) Microsoft Corporation, MS-PL; see LICENSE-MS-PL.txt).
@@ -43,7 +44,8 @@ CreateMiniportTopologySimpleAudioSample
 );
 
 /*********************************************************************
-* Render half of a cable                                             *
+* Render half of a strip's cable. A bus's cable is the same, named   *
+* "Splitter B1 Input" ..., and bus B1 plays into it.                 *
 *                                                                    *
 *              +------+                +------+                      *
 *              | Wave |                | Topo |                      *
@@ -63,7 +65,8 @@ PHYSICALCONNECTIONTABLE CableRenderTopologyPhysicalConnections[] =
 };
 
 /*********************************************************************
-* Capture half of a cable                                            *
+* Capture half of a strip's cable. A bus's cable is the same, named  *
+* "Splitter B1" ..., and apps record it.                             *
 *                                                                    *
 *                     +------+    +------+                           *
 *                     | Topo |    | Wave |                           *
@@ -136,6 +139,11 @@ SPLITTER_RENDER_MINIPAIR(3)
 SPLITTER_RENDER_MINIPAIR(4)
 SPLITTER_RENDER_MINIPAIR(5)
 SPLITTER_RENDER_MINIPAIR(6)
+SPLITTER_RENDER_MINIPAIR(7)
+SPLITTER_RENDER_MINIPAIR(8)
+SPLITTER_RENDER_MINIPAIR(9)
+SPLITTER_RENDER_MINIPAIR(10)
+SPLITTER_RENDER_MINIPAIR(11)
 
 SPLITTER_CAPTURE_MINIPAIR(1)
 SPLITTER_CAPTURE_MINIPAIR(2)
@@ -143,6 +151,11 @@ SPLITTER_CAPTURE_MINIPAIR(3)
 SPLITTER_CAPTURE_MINIPAIR(4)
 SPLITTER_CAPTURE_MINIPAIR(5)
 SPLITTER_CAPTURE_MINIPAIR(6)
+SPLITTER_CAPTURE_MINIPAIR(7)
+SPLITTER_CAPTURE_MINIPAIR(8)
+SPLITTER_CAPTURE_MINIPAIR(9)
+SPLITTER_CAPTURE_MINIPAIR(10)
+SPLITTER_CAPTURE_MINIPAIR(11)
 
 //=============================================================================
 //
@@ -157,6 +170,11 @@ PENDPOINT_MINIPAIR  g_RenderEndpoints[] =
     &CableRender4Miniports,
     &CableRender5Miniports,
     &CableRender6Miniports,
+    &CableRender7Miniports,
+    &CableRender8Miniports,
+    &CableRender9Miniports,
+    &CableRender10Miniports,
+    &CableRender11Miniports,
 };
 
 #define g_cRenderEndpoints  (SIZEOF_ARRAY(g_RenderEndpoints))
@@ -174,6 +192,11 @@ PENDPOINT_MINIPAIR  g_CaptureEndpoints[] =
     &CableCapture4Miniports,
     &CableCapture5Miniports,
     &CableCapture6Miniports,
+    &CableCapture7Miniports,
+    &CableCapture8Miniports,
+    &CableCapture9Miniports,
+    &CableCapture10Miniports,
+    &CableCapture11Miniports,
 };
 
 #define g_cCaptureEndpoints (SIZEOF_ARRAY(g_CaptureEndpoints))

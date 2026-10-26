@@ -203,7 +203,7 @@ public:
         return m_pAdapterCommon; 
     };
 
-    // Splitter: which endpoint this is (eCableRender1 ... eCableCapture6).
+    // Splitter: which endpoint this is (eCableRender1 ... eCableCapture11).
     eDeviceType GetDeviceType()
     {
         return m_DeviceType;

@@ -2,7 +2,7 @@
 
 Splitter: the ring buffer between the two halves of a cable.
 
-Copyright (c) the BananaSplit authors. MIT licence (see splitter/LICENSE).
+Copyright (c) the BananaSplit authors. MIT licence (see LICENSE).
 
 What an app plays into "Splitter N" is pushed into ring N by the render
 stream; the capture stream of "Splitter N Output" pulls it out again. The

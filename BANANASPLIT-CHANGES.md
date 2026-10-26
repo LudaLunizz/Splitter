@@ -1,12 +1,16 @@
 # BananaSplit side of Splitter
 
-`bananasplit-changes.patch` holds the changes made to BananaSplit (the
-`windows/` app, its READMEs and its CI) so it uses Splitter cables: strip N
-records `Splitter N Output`, VB-Audio stays the fallback, `@default` never
-follows Windows into a Splitter cable, and CI jobs build this driver.
+BananaSplit's app side of Splitter is in BananaSplit itself, from 2.8.3 on
+(`windows/src/win/route.rs`, `chanmenu.rs`, `cables.rs`): strip N records
+`Splitter N Output`, bus B1 plays into `Splitter B1 Input`, VB-Audio stays
+the fallback, `@default` never follows Windows into a Splitter cable, and
+Menu › Virtual cables… shows which Splitter cables are installed. It finds
+the cables by the names in `windows/driver/Source/Main/Splitter.inx`, so
+those names must not change without BananaSplit changing too.
 
-The patch is against BananaSplit `main` at 7bf7a2d (v2.8.0). It also adds
-CI jobs and a release workflow that expect Splitter in a `splitter/` folder
-of that repository. To apply it there:
+The window's "Splitter download page" button opens this repository's
+releases (`SPLITTER_PAGE` in `route.rs`). If the repository moves or is
+renamed, that link must change too.
 
-    git apply --3way bananasplit-changes.patch
+`bananasplit-changes.patch`, the app-side patch against 2.8.0 that this
+file used to describe, is in this repository's history (commit 12f6620).

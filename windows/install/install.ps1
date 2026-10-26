@@ -1,14 +1,19 @@
 <#
 .SYNOPSIS
-    Installs (or updates) the Splitter virtual cables: Splitter 1 to 6.
+    Installs (or updates) Splitter: BananaSplit's virtual cables, one for
+    each of its eleven channels.
 
 .DESCRIPTION
     Run install.cmd, which asks for administrator rights and runs this.
 
-    Splitter is one virtual device ("Splitter Virtual Cables", hardware id
-    ROOT\Splitter) with six cables. Cable N is a playback device "Splitter N"
-    that apps play into and a recording device "Splitter N Output" that
-    BananaSplit's input strip N records.
+    Splitter is one virtual device ("Splitter Cables", hardware id
+    ROOT\Splitter) with eleven cables:
+      - strip N (1 to 6): a playback device "Splitter N" that apps play
+        into, and a recording device "Splitter N Output" that BananaSplit's
+        input strip N records;
+      - bus A1, A2, A3, B1 or B2: a playback device "Splitter B1 Input"
+        (say) that the bus plays into, and a recording device "Splitter B1"
+        that apps use as a microphone.
 
     This script:
       - checks Windows (10 version 2004 or later, 64-bit);
@@ -180,7 +185,7 @@ try {
         Write-Host 'Splitter is installed already: updating its driver...'
         $reboot = [SplitterSetup]::Update($hwid, $inf)
     } else {
-        Write-Host 'Installing Splitter (Splitter 1 to 6)...'
+        Write-Host 'Installing Splitter (eleven cables)...'
         $reboot = [SplitterSetup]::CreateAndInstall($hwid, $inf)
     }
 } catch {
@@ -199,14 +204,16 @@ if ($dev -and $dev.ConfigManagerErrorCode -ne 0) {
 }
 
 Start-Sleep -Seconds 2
+# Windows writes "(2- Splitter Cables)" for a second Splitter device.
 $endpoints = @(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
-    Where-Object { $_.Name -like '*(Splitter Virtual Cables)' } | Sort-Object Name)
+    Where-Object { $_.Name -match '\((\d+- )?Splitter Cables\)$' } | Sort-Object Name)
 Write-Host ''
 if ($endpoints.Count -gt 0) {
     Write-Host 'Splitter cables:'
     foreach ($e in $endpoints) { Write-Host "  $($e.Name)" }
     Write-Host ''
-    Write-Host 'In an app, choose "Splitter N" as its output to send it to BananaSplit''s input strip N.'
+    Write-Host 'In an app, choose "Splitter N" as its output to send it to BananaSplit''s input strip N,'
+    Write-Host 'or "Splitter B1" (say) as its microphone to hear BananaSplit''s bus B1.'
 } else {
     Write-Host 'Splitter is installed; its cables appear in the sound settings in a moment.'
 }

@@ -1,11 +1,12 @@
 # Splitter
 
-Splitter is BananaSplit's own set of virtual audio cables, packaged
-separately from BananaSplit. It replaces VB-Audio's cables for the input
-strips.
+Splitter is BananaSplit's own set of virtual cables, packaged separately
+from BananaSplit. It gives every BananaSplit channel a cable of its own:
+the six input strips and the five buses. With it, BananaSplit for Windows
+doesn't need VB-Audio's cables any more.
 
-There are six cables, one for each input strip, and their numbers are the
-strips' numbers:
+A strip's cable takes sound from apps into the strip, and the cable's number
+is the strip's number:
 
 | Cable | Apps play into (playback device) | BananaSplit records (recording device) |
 | --- | --- | --- |
@@ -16,42 +17,62 @@ strips' numbers:
 | 5 | `Splitter 5` | `Splitter 5 Output` → strip 5 |
 | 6 | `Splitter 6` | `Splitter 6 Output` → strip 6 |
 
-Windows shows each of them with the device name after it, for example
-`Splitter 3 (Splitter Virtual Cables)`.
+A bus's cable works the other way round: it makes the bus's mix a
+microphone that apps can record, and the cable is named after the bus:
 
-Status: **Windows only, version 0.1.0, test-signed, private (not on
-GitHub).** Linux already gets its
-cables from PipeWire (BananaSplit makes them itself), and macOS isn't
-supported yet.
+| Cable | BananaSplit plays into (playback device) | Apps record (recording device) |
+| --- | --- | --- |
+| 7 | bus A1 → `Splitter A1 Input` | `Splitter A1` |
+| 8 | bus A2 → `Splitter A2 Input` | `Splitter A2` |
+| 9 | bus A3 → `Splitter A3 Input` | `Splitter A3` |
+| 10 | bus B1 → `Splitter B1 Input` | `Splitter B1` |
+| 11 | bus B2 → `Splitter B2 Input` | `Splitter B2` |
+
+In both tables, the device you pick in other apps is the one with the short
+name. Windows shows each device with the device name after it, for example
+`Splitter 3 (Splitter Cables)` or `Splitter B1 (Splitter Cables)`.
+
+Status: **Windows only, version 0.2.0, test-signed, not public yet.**
+Splitter has a repository of its own, apart from BananaSplit's:
+[LudaLunizz/Splitter](https://github.com/LudaLunizz/Splitter). Linux
+already gets its cables from PipeWire (BananaSplit makes them itself), and
+macOS isn't supported yet.
 
 ## Using it with BananaSplit
 
-BananaSplit for Windows finds the cables by their numbers. Strip N uses
-`Splitter N Output` whenever its virtual cable is switched on (the default),
-and its channel menu says `Splitter N` so you know which device to pick in
-the app. Without Splitter, BananaSplit falls back to VB-Audio cables, as
-before.
+BananaSplit for Windows (2.8.3 and later) finds the cables by their names.
+When a channel's virtual cable is switched on in its menu:
 
-The buses (B1, B2) still need VB-Audio cables to appear as microphones in
-other apps. Splitter's six cables all go into the strips.
+- strip N records `Splitter N Output`, and its menu says `Splitter N`, the
+  device to pick as the app's output;
+- bus B1 (say) plays into `Splitter B1 Input`, and its menu says
+  `Splitter B1`, the device to pick as the app's microphone.
+
+The strips and B1, B2 have their cables switched on to begin with; A1 to A3
+are the speakers and headsets, so theirs are off. Without Splitter,
+BananaSplit falls back to VB-Audio cables, as before, and it uses VB-Audio
+cables for any channel whose Splitter cable is missing (for example,
+switched off in the Windows sound settings).
 
 BananaSplit never follows the Windows default device into a Splitter cable.
 If the default output is `Splitter 1`, A1 still plays on the real speakers,
-because playing into the cable that strip 1 records would feed back.
+because playing into the cable that strip 1 records would feed back. In the
+same way, if the default input is `Splitter B1`, a strip on the default
+input records the real microphone.
 
 ## How a cable works
 
 `windows/driver` is a WaveRT audio driver (PortCls and KMDF). It is a fork
 of Microsoft's
 [SimpleAudioSample](https://github.com/microsoft/Windows-driver-samples/tree/main/audio/simpleaudiosample),
-which is under the MS-PL licence. It has twelve endpoints: a render and a
-capture endpoint for each cable.
+which is under the MS-PL licence. It has twenty-two endpoints: a render and
+a capture endpoint for each cable.
 
-- **Data path:** the render stream of `Splitter N` converts what it plays
-  to 32-bit float and pushes it into ring N. The capture stream of
-  `Splitter N Output` pulls it out again, so the two halves of a cable may
-  use different sample formats. Each ring holds 0.68 s.
-  (`Source/Utilities/cablering.*`)
+- **Data path:** the render endpoint of cable N converts what is played
+  into it to 32-bit float and pushes it into ring N. The capture endpoint of
+  the same cable pulls it out again, so the two halves of a cable may use
+  different sample formats. Each ring holds 0.68 s (256 KiB, so 2.75 MiB
+  for the eleven cables). (`Source/Utilities/cablering.*`)
 - **Clock:** both halves are clocked by the performance counter at exactly
   48 kHz, so they never drift apart. Both move the cable on the driver's
   1 ms timer, whatever packet size their apps use, and the reader keeps a
@@ -67,12 +88,36 @@ capture endpoint for each cable.
   float. NaN and infinity become silence.
 - **Copy-protected content:** it plays as silence. The driver doesn't claim
   DRM support.
-- **Names:** the INF writes each endpoint's name, in the device's own registry key, under the name GUID of its
-  topology connector pin (`MediaCategories`). Those GUIDs are in
-  `Source/Inc/endpoints.h`.
+- **Names:** the INF writes each endpoint's name, in the device's own
+  registry key, under the name GUID of its topology connector pin
+  (`MediaCategories`). Those GUIDs are in `Source/Inc/endpoints.h`. The
+  recording half of a bus cable has a microphone connector, so Windows shows
+  it as a microphone; the recording half of a strip cable is a line in.
 
 From the sample, Splitter removed the sine-tone generator, the dumping of
 playback to `.wav` files, and the mic-array topology.
+
+## Names, and VB-Audio
+
+Splitter contains no VB-Audio code: it is Microsoft's MS-PL sample plus
+code of its own. Its names stay clear of VB-Audio's products and device
+names ("VB-CABLE", "CABLE Input", "CABLE Output", "VB-Audio Virtual Cable",
+"Voicemeeter"):
+
+- the cables are called `Splitter …`, and none of them contains "CABLE",
+  "VB" or "Voicemeeter";
+- the device is called "Splitter Cables". Version 0.1.0 called it "Splitter
+  Virtual Cables", which came close to VB-Audio's driver name "VB-Audio
+  Virtual Cable" and to "Virtual Audio Cable", the registered trademark of
+  another product (Eugene Muzychenko's VAC), whose owner allows the words
+  only as a common term, not as the name of someone else's product. So
+  Splitter's texts call its cables "virtual cables", never "virtual audio
+  cables".
+
+The bus names A1 … B2 are BananaSplit's own bus names. VBAN, which
+BananaSplit also speaks, is VB-Audio's protocol, and its specification lets
+anyone implement it ("VBAN Protocol is public and free"). BananaSplit uses
+only the PCM audio part, which that licence covers.
 
 ## Building
 
@@ -94,10 +139,16 @@ The script does the following:
 4. puts the result in `windows/dist/splitter-<version>-windows-x64.zip`,
    together with the installer and the licences.
 
-This is a private local repository with no CI of its own. The CI jobs and
-the release workflow that built this package on GitHub are in
-`bananasplit-changes.patch`, for if Splitter goes back into BananaSplit's
-repository.
+On GitHub, every push to a branch runs `.github/workflows/ci.yml`:
+`tests/cablerule_test.cpp` and `tests/inf_check.py` on Linux, and
+`build.ps1` on Windows, which keeps the test-signed zip for 14 days as the
+run's artifact.
+
+A tag `v<version>` (`v0.2.0`, the version in `VERSION`) runs
+`.github/workflows/release.yml`. It builds the package and publishes it,
+with `SHA256SUMS.txt`, as a pre-release, because the build is test-signed.
+BananaSplit's "Splitter download page" button opens this repository's
+releases, so Splitter is released here, not in BananaSplit's repository.
 
 The version is in `VERSION`. It must also be set in `Splitter.inx`,
 `Splitter.rc` and `Directory.Build.props`, and the build checks that all
@@ -105,19 +156,25 @@ three match.
 
 ## Installing
 
-Unzip the package and run `install.cmd`. Running `uninstall.cmd` removes
-everything again. The package's `README.txt` explains both.
+Unzip the package and run `install.cmd`. Running it again updates the
+driver. Running `uninstall.cmd` removes everything again. The package's
+`README.txt` explains both.
+
+If 0.1.0 is installed, run its `uninstall.cmd` first. 0.2.0 renamed the
+device ("Splitter Virtual Cables" became "Splitter Cables"), and Windows may
+keep the old name on the endpoints it already knows, which BananaSplit
+doesn't recognise.
 
 ## Signing: why this build only runs in test mode
 
 Windows 10 and 11 load a kernel driver only if Microsoft has signed it.
 
-- **Test build:** the package that CI makes is signed with a test
+- **Test build:** the package that `build.ps1` makes is signed with a test
   certificate. It loads only on a PC in test-signing mode (`bcdedit /set
   testsigning on`, then a restart; Secure Boot must be off).
   - `install.cmd` checks for that and explains what to do.
   - Use this build for development and trying it out, not for everyone's
-    PC.
+    PC. Some games' anti-cheat refuses to run in test mode.
 - **Public build:** a release that installs on any PC needs Microsoft's
   attestation signature. To get it, the project registers in the Partner
   Center Hardware Developer Program, which needs an EV code-signing
@@ -132,16 +189,26 @@ Windows 10 and 11 load a kernel driver only if Microsoft has signed it.
 
 ## Not tested yet
 
-The GitHub CI built the driver, checked its INF and tested the ring rules
-(`windows/tests/cablerule_test.cpp`). It can't load
-a test-signed driver, because GitHub's Windows runners can't restart into
-test mode. Before a release, check these on a real PC in test mode:
+Version 0.2.0 has not been built with Visual Studio or run on Windows yet.
+It was checked on Linux:
 
-- all twelve endpoints appear with their names;
+- every driver source file type-checks with clang against the real WDK and
+  SDK headers (Release and Debug, Windows 10 2004 and the newest target),
+  with no new warnings;
+- `tests/inf_check.py` checks that the INF, the endpoint GUIDs and the
+  filter tables agree for all eleven cables;
+- `tests/cablerule_test.cpp` passes.
+
+Before a release, check these on a real PC in test mode:
+
+- the build (`build.ps1`, including InfVerif) passes;
+- all twenty-two endpoints appear with their names, and the bus cables'
+  recording halves show as microphones;
 - audio passes through each cable in all three formats;
 - the latency;
 - running for a long time without glitches;
-- install, update and uninstall;
+- install, update (0.2.0 over 0.2.0) and uninstall, and that BananaSplit
+  recognises all eleven cables afterwards;
 - Driver Verifier.
 
 ## Licence

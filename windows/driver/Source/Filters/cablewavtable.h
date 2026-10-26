@@ -1,6 +1,6 @@
 /*++
 
-Splitter: wave filters of the cables (the same two for all six cables).
+Splitter: wave filters of the cables (the same two for all eleven cables).
 
 Derived from speakerwavtable.h and micarraywavtable.h of Microsoft's
 SimpleAudioSample (Copyright (c) Microsoft Corporation, MS-PL; see

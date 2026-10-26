@@ -3,7 +3,7 @@
 Splitter: the ring buffer between the two halves of a cable. See
 cablering.h for how the reader keeps its distance.
 
-Copyright (c) the BananaSplit authors. MIT licence (see splitter/LICENSE).
+Copyright (c) the BananaSplit authors. MIT licence (see LICENSE).
 --*/
 
 #include "definitions.h"
