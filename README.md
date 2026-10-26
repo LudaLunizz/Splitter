@@ -90,7 +90,8 @@ a capture endpoint for each cable.
   These rules are plain arithmetic in `Source/Utilities/cablerule.h`, and
   `tests/cablerule_test.cpp` tests them on any computer.
 - **Formats:** 48 kHz stereo, in 16-bit, 24-bit (the default) or 32-bit
-  float. NaN and infinity become silence.
+  float. NaN and infinity become silence. 16-bit and 24-bit audio comes
+  out exactly as it went in, sample for sample.
 - **Copy-protected content:** it plays as silence. The driver doesn't claim
   DRM support.
 - **Names:** the INF writes each endpoint's name, in the device's own

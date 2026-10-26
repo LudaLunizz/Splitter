@@ -148,6 +148,17 @@ static __inline FLOAT CableClamp(FLOAT x)
     return x > 1.0f ? 1.0f : (x < -1.0f ? -1.0f : x);
 }
 
+// A float sample -> the nearest code of an integer format whose full scale
+// is Scale (32768 for 16-bit, 8388608 for 24-bit). This undoes
+// CableDecode's v / Scale exactly, so integer audio comes out of a cable as
+// it went in. +1.0 is one step past the top code and clips to Scale - 1.
+static __inline long CableQuantize(FLOAT x, long Scale)
+{
+    x = CableClamp(x) * (FLOAT)Scale;
+    long v = (long)(x >= 0.0f ? x + 0.5f : x - 0.5f);
+    return v > Scale - 1 ? Scale - 1 : (v < -Scale ? -Scale : v);
+}
+
 // Bytes in format Fmt -> float samples (Frames frames).
 static __inline void CableDecode(const UCHAR* Src, ULONG Fmt, FLOAT* Dst, ULONG Frames)
 {
@@ -178,7 +189,8 @@ static __inline void CableDecode(const UCHAR* Src, ULONG Fmt, FLOAT* Dst, ULONG 
 }
 
 // Float samples -> bytes in format Fmt (Frames frames). Integer formats are
-// clipped at full scale; float passes through (only NaN/infinity become 0).
+// rounded and clipped (CableQuantize); float passes through (only
+// NaN/infinity become 0).
 static __inline void CableEncode(const FLOAT* Src, ULONG Fmt, UCHAR* Dst, ULONG Frames)
 {
     ULONG n = Frames * CABLE_RING_CHANNELS;
@@ -186,15 +198,13 @@ static __inline void CableEncode(const FLOAT* Src, ULONG Fmt, UCHAR* Dst, ULONG 
     {
         if (Fmt == CABLE_FMT_PCM16)
         {
-            FLOAT x = CableClamp(Src[i]) * 32767.0f;
-            long v = (long)(x >= 0.0f ? x + 0.5f : x - 0.5f);
+            long v = CableQuantize(Src[i], 32768);
             Dst[2 * i]     = (UCHAR)(v & 0xFF);
             Dst[2 * i + 1] = (UCHAR)((v >> 8) & 0xFF);
         }
         else if (Fmt == CABLE_FMT_PCM24)
         {
-            FLOAT x = CableClamp(Src[i]) * 8388607.0f;
-            long v = (long)(x >= 0.0f ? x + 0.5f : x - 0.5f);
+            long v = CableQuantize(Src[i], 8388608);
             Dst[3 * i]     = (UCHAR)(v & 0xFF);
             Dst[3 * i + 1] = (UCHAR)((v >> 8) & 0xFF);
             Dst[3 * i + 2] = (UCHAR)((v >> 16) & 0xFF);

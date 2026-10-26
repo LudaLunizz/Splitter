@@ -239,17 +239,17 @@ static void test_formats_round_trip() {
         CableDecode(bytes.data(), fmts[k], back.data(), frames);
         for (ULONG i = 0; i < frames * 2; i++) CHECK(std::fabs(back[i] - src[i]) <= tol[k]);
     }
-    // integer formats: exact full-scale codes, clipping, little-endian
+    // integer formats: full-scale codes, clipping, little-endian
     float edge[4] = {1.0f, -1.0f, 2.0f, -3.0f};
     UCHAR b16[8], b24[12];
     CableEncode(edge, CABLE_FMT_PCM16, b16, 2);
-    CHECK(b16[0] == 0xFF && b16[1] == 0x7F);    // +32767
-    CHECK(b16[2] == 0x01 && b16[3] == 0x80);    // -32767
+    CHECK(b16[0] == 0xFF && b16[1] == 0x7F);    // +1.0 clips to +32767
+    CHECK(b16[2] == 0x00 && b16[3] == 0x80);    // -1.0 is -32768
     CHECK(b16[4] == 0xFF && b16[5] == 0x7F);    // clipped
-    CHECK(b16[6] == 0x01 && b16[7] == 0x80);
+    CHECK(b16[6] == 0x00 && b16[7] == 0x80);
     CableEncode(edge, CABLE_FMT_PCM24, b24, 2);
     CHECK(b24[0] == 0xFF && b24[1] == 0xFF && b24[2] == 0x7F);
-    CHECK(b24[3] == 0x01 && b24[4] == 0x00 && b24[5] == 0x80);
+    CHECK(b24[3] == 0x00 && b24[4] == 0x00 && b24[5] == 0x80);
     // decoding the most negative codes
     UCHAR m16[4] = {0x00, 0x80, 0x00, 0x00};
     UCHAR m24[6] = {0x00, 0x00, 0x80, 0x00, 0x00, 0x00};
@@ -271,6 +271,44 @@ static void test_formats_round_trip() {
     CHECK(b16[0] == 0 && b16[1] == 0 && b16[2] == 0 && b16[3] == 0);
 }
 
+static void test_integer_audio_passes_unchanged() {
+    // What one half reads in an integer format, the other half writes back
+    // exactly: every 16-bit code, every 24-bit code, and 16-bit audio read
+    // out by a 24-bit half (the same values, 8 bits up).
+    const ULONG frames = 4096;
+    std::vector<float> f(frames * 2);
+    std::vector<UCHAR> in(frames * 2 * 3), out(frames * 2 * 3);
+    for (long first = -32768; first < 32768; first += (long)(frames * 2)) {
+        for (ULONG i = 0; i < frames * 2; i++) {
+            long v = first + (long)i;
+            in[2 * i] = (UCHAR)(v & 0xFF);
+            in[2 * i + 1] = (UCHAR)((v >> 8) & 0xFF);
+        }
+        CableDecode(in.data(), CABLE_FMT_PCM16, f.data(), frames);
+        CableEncode(f.data(), CABLE_FMT_PCM16, out.data(), frames);
+        CHECK(std::memcmp(in.data(), out.data(), frames * 4) == 0);
+        CableEncode(f.data(), CABLE_FMT_PCM24, out.data(), frames);
+        bool shifted = true;
+        for (ULONG i = 0; i < frames * 2; i++) {
+            long w = (long)(out[3 * i] | (out[3 * i + 1] << 8) | ((ULONG)out[3 * i + 2] << 16));
+            if (w & 0x800000) w -= 0x1000000;
+            if (w != (first + (long)i) * 256) shifted = false;
+        }
+        CHECK(shifted);
+    }
+    for (long first = -8388608; first < 8388608; first += (long)(frames * 2)) {
+        for (ULONG i = 0; i < frames * 2; i++) {
+            long v = first + (long)i;
+            in[3 * i] = (UCHAR)(v & 0xFF);
+            in[3 * i + 1] = (UCHAR)((v >> 8) & 0xFF);
+            in[3 * i + 2] = (UCHAR)((v >> 16) & 0xFF);
+        }
+        CableDecode(in.data(), CABLE_FMT_PCM24, f.data(), frames);
+        CableEncode(f.data(), CABLE_FMT_PCM24, out.data(), frames);
+        CHECK(std::memcmp(in.data(), out.data(), frames * 6) == 0);
+    }
+}
+
 int main() {
     test_waits_for_margin_then_plays_in_order();
     test_jitter_within_margin_never_drops_or_repeats();
@@ -278,6 +316,7 @@ int main() {
     test_late_reader_skips_ahead();
     test_huge_write_keeps_newest();
     test_formats_round_trip();
+    test_integer_audio_passes_unchanged();
     if (failures) {
         std::printf("%d check(s) failed\n", failures);
         return 1;
