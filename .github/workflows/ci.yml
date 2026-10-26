@@ -1,10 +1,12 @@
 name: CI
 
-# Every push to a branch: the cable rules and the INF check on Linux, and
-# the real driver build (MSVC, InfVerif, test signing) on Windows.
+# Every push to main and every pull request: the cable rules and the INF
+# check on Linux, and the real driver build (MSVC, InfVerif, test signing)
+# on Windows.
 on:
   push:
-    branches: ['**']
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:

@@ -1,0 +1,39 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Splitter version
+      description: The version in the zip's name, or the driver version in Device Manager (Sound, video and game controllers ▸ Splitter Cables ▸ Driver)
+      placeholder: Splitter 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Windows
+      description: Windows version and build (run `winver`), and whether test-signing mode is on
+      placeholder: Windows 11 24H2 (build 26100), test mode on
+    validations:
+      required: true
+  - type: input
+    id: bananasplit
+    attributes:
+      label: BananaSplit version
+      description: If you use Splitter with BananaSplit
+      placeholder: BananaSplit 2.8.3
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, which cable (Splitter 3, Splitter B1 …), what you expected and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: What install.cmd or uninstall.cmd showed, if the problem is with installing
+      render: text

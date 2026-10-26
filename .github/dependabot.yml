@@ -1,0 +1,12 @@
+version: 2
+# The WDK and SDK (windows/driver/packages.config) are left out:
+# Directory.Build.props names their version too, so they are updated by
+# hand, both files together.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

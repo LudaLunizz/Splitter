@@ -1,5 +1,9 @@
 # Splitter
 
+[![CI](https://github.com/LudaLunizz/Splitter/actions/workflows/ci.yml/badge.svg)](https://github.com/LudaLunizz/Splitter/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/LudaLunizz/Splitter?include_prereleases&sort=semver)](https://github.com/LudaLunizz/Splitter/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Splitter is BananaSplit's own set of virtual cables, packaged separately
 from BananaSplit. It gives every BananaSplit channel a cable of its own:
 the six input strips and the five buses. With it, BananaSplit for Windows
@@ -32,11 +36,12 @@ In both tables, the device you pick in other apps is the one with the short
 name. Windows shows each device with the device name after it, for example
 `Splitter 3 (Splitter Cables)` or `Splitter B1 (Splitter Cables)`.
 
-Status: **Windows only, version 0.2.0, test-signed, not public yet.**
-Splitter has a repository of its own, apart from BananaSplit's:
-[LudaLunizz/Splitter](https://github.com/LudaLunizz/Splitter). Linux
-already gets its cables from PipeWire (BananaSplit makes them itself), and
-macOS isn't supported yet.
+Status: **Windows only, version 0.2.0, test-signed.** It is on the
+[Releases](https://github.com/LudaLunizz/Splitter/releases) page, and it
+installs only on a PC in test-signing mode (see
+[Signing](#signing-why-this-build-only-runs-in-test-mode)). Linux already
+gets its cables from PipeWire (BananaSplit makes them itself), and macOS
+isn't supported yet.
 
 ## Using it with BananaSplit
 
@@ -139,7 +144,8 @@ The script does the following:
 4. puts the result in `windows/dist/splitter-<version>-windows-x64.zip`,
    together with the installer and the licences.
 
-On GitHub, every push to a branch runs `.github/workflows/ci.yml`:
+On GitHub, every push to `main` and every pull request runs
+`.github/workflows/ci.yml`:
 `tests/cablerule_test.cpp` and `tests/inf_check.py` on Linux, and
 `build.ps1` on Windows, which keeps the test-signed zip for 14 days as the
 run's artifact.
@@ -192,9 +198,10 @@ Windows 10 and 11 load a kernel driver only if Microsoft has signed it.
 
 ## Not tested yet
 
-Version 0.2.0 has not been built with Visual Studio or run on Windows yet.
-It was checked on Linux:
+Version 0.2.0 has not been run on a real PC yet. What has been checked:
 
+- CI builds it with Visual Studio and the WDK on GitHub's Windows runner,
+  and InfVerif and Inf2Cat pass with no errors or warnings;
 - every driver source file type-checks with clang against the real WDK and
   SDK headers (Release and Debug, Windows 10 2004 and the newest target),
   with no new warnings;
@@ -202,9 +209,8 @@ It was checked on Linux:
   filter tables agree for all eleven cables;
 - `tests/cablerule_test.cpp` passes.
 
-Before a release, check these on a real PC in test mode:
+Still to check on a real PC in test mode:
 
-- the build (`build.ps1`, including InfVerif) passes;
 - all twenty-two endpoints appear with their names, and the bus cables'
   recording halves show as microphones;
 - audio passes through each cable in all three formats;
@@ -213,6 +219,13 @@ Before a release, check these on a real PC in test mode:
 - install, update (0.2.0 over 0.2.0) and uninstall, and that BananaSplit
   recognises all eleven cables afterwards;
 - Driver Verifier.
+
+## Contributing
+
+Issues and pull requests are welcome. Please run
+`windows/tests/cablerule_test.cpp` and `windows/tests/inf_check.py` (and
+`windows/build.ps1`, if you are on Windows) before opening a pull request;
+CI runs all three.
 
 ## Licence
 
