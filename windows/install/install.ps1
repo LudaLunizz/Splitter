@@ -179,7 +179,11 @@ function Get-SplitterDevices {
     @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
 }
 
-$existing = Get-SplitterDevices
+# @() here, not only inside the function: PowerShell unrolls what a function
+# returns, so one device would come back as a single object and none as
+# $null, and with strict mode on, Windows PowerShell 5.1 can't take .Count
+# of a single object.
+$existing = @(Get-SplitterDevices)
 try {
     if ($existing.Count -gt 0) {
         Write-Host 'Splitter is installed already: updating its driver...'
@@ -194,16 +198,26 @@ try {
 }
 
 # --- report ----------------------------------------------------------------
+Start-Sleep -Seconds 2
+# Problem code 14 means a restart finishes the job, and so does any code
+# while Windows asks for a restart (38 after an update: the old driver is
+# still loaded). Any other code means Windows did not start the driver, and
+# then no cables appear.
 $dev = Get-SplitterDevices | Select-Object -First 1
-if ($dev -and $dev.ConfigManagerErrorCode -ne 0) {
+$problem = 0
+if ($dev) { $problem = $dev.ConfigManagerErrorCode }
+if ($problem -eq 14 -or ($problem -ne 0 -and $reboot)) {
+    $reboot = $true
+} elseif ($problem -ne 0) {
     Write-Host ''
-    Write-Host ("The Splitter device reports problem code {0}." -f $dev.ConfigManagerErrorCode) -ForegroundColor Yellow
-    if ($dev.ConfigManagerErrorCode -eq 52) {
+    Write-Host ("The driver is installed, but Windows did not start it (problem code {0}), so there are no cables." -f $problem) -ForegroundColor Red
+    if ($problem -eq 52) {
         Write-Host 'Code 52: Windows does not accept the driver''s signature (test signing off?).' -ForegroundColor Yellow
     }
+    Write-Host 'Details: Device Manager > Sound, video and game controllers > Splitter Cables, and C:\Windows\INF\setupapi.dev.log'
+    exit 1
 }
 
-Start-Sleep -Seconds 2
 # Windows writes "(2- Splitter Cables)" for a second Splitter device.
 $endpoints = @(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
     Where-Object { $_.Name -match '\((\d+- )?Splitter Cables\)$' } | Sort-Object Name)
@@ -214,6 +228,8 @@ if ($endpoints.Count -gt 0) {
     Write-Host ''
     Write-Host 'In an app, choose "Splitter N" as its output to send it to BananaSplit''s input strip N,'
     Write-Host 'or "Splitter B1" (say) as its microphone to hear BananaSplit''s bus B1.'
+} elseif ($reboot) {
+    Write-Host 'Splitter is installed; its cables appear after the restart.'
 } else {
     Write-Host 'Splitter is installed; its cables appear in the sound settings in a moment.'
 }

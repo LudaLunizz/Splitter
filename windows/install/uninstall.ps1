@@ -28,13 +28,20 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 $failed = $false
+$restart = $false
+
+# pnputil's exit code: 0 is done, 3010 (ERROR_SUCCESS_REBOOT_REQUIRED) is
+# done but finished by a restart, anything else failed.
+function Read-PnputilResult {
+    if ($LASTEXITCODE -eq 3010) { $script:restart = $true } elseif ($LASTEXITCODE -ne 0) { $script:failed = $true }
+}
 
 # Devices (pnputil /remove-device exists since Windows 10 version 2004).
 $devices = @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
 foreach ($d in $devices) {
     Write-Host "Removing device $($d.PNPDeviceID)..."
     & pnputil /remove-device $d.PNPDeviceID | Out-Host
-    if ($LASTEXITCODE -ne 0) { $failed = $true }
+    Read-PnputilResult
 }
 
 # Driver packages: every oemNN.inf whose original name is splitter.inf.
@@ -44,7 +51,7 @@ $drivers = @(Get-WindowsDriver -Online -All | Where-Object {
 foreach ($p in $drivers) {
     Write-Host "Removing driver package $($p.Driver)..."
     & pnputil /delete-driver $p.Driver /uninstall /force | Out-Host
-    if ($LASTEXITCODE -ne 0) { $failed = $true }
+    Read-PnputilResult
 }
 
 if ($RemoveCertificate) {
@@ -63,6 +70,8 @@ if ($devices.Count -eq 0 -and $drivers.Count -eq 0) {
 } elseif ($failed) {
     Write-Host 'Some parts could not be removed; see the messages above. A restart and a second run usually finish it.' -ForegroundColor Yellow
     exit 1
+} elseif ($restart) {
+    Write-Host 'Splitter is removed. Restart Windows to finish.' -ForegroundColor Yellow
 } else {
     Write-Host 'Splitter is removed.'
 }
