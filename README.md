@@ -144,11 +144,14 @@ On GitHub, every push to a branch runs `.github/workflows/ci.yml`:
 `build.ps1` on Windows, which keeps the test-signed zip for 14 days as the
 run's artifact.
 
-A tag `v<version>` (`v0.2.0`, the version in `VERSION`) runs
-`.github/workflows/release.yml`. It builds the package and publishes it,
-with `SHA256SUMS.txt`, as a pre-release, because the build is test-signed.
-BananaSplit's "Splitter download page" button opens this repository's
-releases, so Splitter is released here, not in BananaSplit's repository.
+To release, push a tag `v<version>` (`v0.2.0`, the version in `VERSION`).
+It runs `.github/workflows/release.yml`, which builds the package and
+writes `SHA256SUMS.txt` but doesn't publish them. When it has finished, run
+`./release.sh v0.2.0`. It checks the files and publishes them under your
+own GitHub account (`gh`), not GitHub's bot, as a pre-release, because the
+build is test-signed. BananaSplit's "Splitter download page" button opens
+this repository's releases, so Splitter is released here, not in
+BananaSplit's repository.
 
 The version is in `VERSION`. It must also be set in `Splitter.inx`,
 `Splitter.rc` and `Directory.Build.props`, and the build checks that all

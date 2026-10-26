@@ -1,8 +1,9 @@
 name: Release
 
 # A tag v<version> (the version in VERSION) builds the Windows driver
-# package and publishes it as a release. BananaSplit's "Splitter download
-# page" button opens this repository's releases.
+# package and checksums it; ./release.sh <tag> then publishes it.
+# BananaSplit's "Splitter download page" button opens this repository's
+# releases.
 on:
   push:
     tags: ['v*']
@@ -56,12 +57,12 @@ jobs:
           path: windows/dist/*.zip
           if-no-files-found: error
 
-  publish:
-    name: Publish release
+  # The workflow doesn't publish the release: ./release.sh <tag> takes these
+  # files and makes the release under the maintainer's own GitHub account.
+  files:
+    name: Release files
     needs: windows
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -72,19 +73,8 @@ jobs:
         working-directory: dist
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
 
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          # Test-signed builds go out as pre-releases (see README.md,
-          # "Signing").
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
-          else
-            gh release create "$TAG" dist/* \
-              --title "Splitter ${TAG#v} (test-signed)" \
-              --notes "BananaSplit's own virtual cables, one for each of its eleven channels (Splitter 1 to 6 for the strips, Splitter A1 to B2 for the buses). This build is test-signed: it installs only on a PC in test-signing mode. See README.txt in the zip." \
-              --prerelease \
-              --verify-tag
-          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: splitter-${{ env.TAG }}
+          path: dist/*
+          if-no-files-found: error
