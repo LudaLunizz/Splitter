@@ -13,4 +13,5 @@ releases (`SPLITTER_PAGE` in `route.rs`). If the repository moves or is
 renamed, that link must change too.
 
 `bananasplit-changes.patch`, the app-side patch against 2.8.0 that this
-file used to describe, is in this repository's history (commit 12f6620).
+file used to describe, is in this repository's history
+(`git log -- bananasplit-changes.patch`).
