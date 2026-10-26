@@ -221,12 +221,21 @@ Return Value:
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    m_pWfExt = (PWAVEFORMATEXTENSIBLE)ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(WAVEFORMATEX) + pWfEx->cbSize, MINWAVERTSTREAM_POOLTAG);
+    // Splitter: keep the WAVEFORMATEX, or the WAVEFORMATEXTENSIBLE, that IsFormatSupported has
+    // checked, and nothing after it. The sample copied as much as cbSize said, which PCM formats
+    // don't even have to set, and which can reach past the end of the client's format.
+    ULONG cbFormat = sizeof(WAVEFORMATEX);
+    if (pWfEx->wFormatTag == WAVE_FORMAT_EXTENSIBLE)
+    {
+        cbFormat = sizeof(WAVEFORMATEXTENSIBLE);
+    }
+    m_pWfExt = (PWAVEFORMATEXTENSIBLE)ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(WAVEFORMATEXTENSIBLE), MINWAVERTSTREAM_POOLTAG);
     if (m_pWfExt == NULL)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-    RtlCopyMemory(m_pWfExt, pWfEx, sizeof(WAVEFORMATEX) + pWfEx->cbSize);
+    RtlCopyMemory(m_pWfExt, pWfEx, cbFormat);
+    m_pWfExt->Format.cbSize = (WORD)(cbFormat - sizeof(WAVEFORMATEX));
 
     m_pbMuted = (PBOOL)ExAllocatePool2(POOL_FLAG_NON_PAGED, m_pWfExt->Format.nChannels * sizeof(BOOL), MINWAVERTSTREAM_POOLTAG);
     if (m_pbMuted == NULL)
@@ -268,7 +277,9 @@ Return Value:
         m_ulCableFormat = CABLE_FMT_PCM16;
     }
     if (m_pWfExt->Format.nChannels != CABLE_RING_CHANNELS ||
-        m_pWfExt->Format.nBlockAlign != CableFormatFrameBytes(m_ulCableFormat))
+        m_pWfExt->Format.nBlockAlign != CableFormatFrameBytes(m_ulCableFormat) ||
+        m_ulDmaMovementRate == 0 ||
+        m_ulDmaMovementRate != m_pWfExt->Format.nSamplesPerSec * m_pWfExt->Format.nBlockAlign)
     {
         return STATUS_INVALID_PARAMETER;
     }
