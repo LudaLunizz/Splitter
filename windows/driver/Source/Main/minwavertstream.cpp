@@ -157,8 +157,6 @@ Return Value:
     m_ullWritePosition = 0;
     m_ullDmaTimeStamp = 0;
     m_hnsElapsedTimeCarryForward = 0;
-    m_ullLastDPCTimeStamp = 0;
-    m_hnsDPCTimeCarryForward = 0;
     m_ulDmaMovementRate = 0;
     m_byteDisplacementCarryForward = 0;
     m_bLfxEnabled = FALSE;
@@ -183,7 +181,6 @@ Return Value:
 
     m_pPortStream = PortStream_;
     InitializeListHead(&m_NotificationList);
-    m_ulNotificationIntervalMs = 0;
 
     // Initialize the spinlock to synchronize position updates
     KeInitializeSpinLock(&m_PositionSpinLock);
@@ -372,8 +369,6 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
 {
     PAGED_CODE();
 
-    ULONG ulBufferDurationMs = 0;
-
     if ( (0 == RequestedSize_) || (RequestedSize_ < m_pWfExt->Format.nBlockAlign) )
     { 
         return STATUS_UNSUCCESSFUL; 
@@ -385,7 +380,14 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
     }
 
     RequestedSize_ -= RequestedSize_ % (m_pWfExt->Format.nBlockAlign);
-    
+
+    // Splitter: the stream moves on a 1 ms timer (TimerNotifyRT), so it
+    // can't complete packets shorter than that.
+    if ((ULONGLONG)(RequestedSize_ / NotificationCount_) * 1000 < m_ulDmaMovementRate)
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
     PHYSICAL_ADDRESS highAddress;
     highAddress.HighPart = 0;
     highAddress.LowPart = MAXULONG;
@@ -415,8 +417,6 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
     m_pDmaBuffer = (BYTE*)m_pPortStream->MapAllocatedPages(pBufferMdl, MmCached);
     m_ulNotificationsPerBuffer = NotificationCount_;
     m_ulDmaBufferSize = RequestedSize_;
-    ulBufferDurationMs = (ULONG)(((ULONGLONG)RequestedSize_ * 1000) / m_ulDmaMovementRate);
-    m_ulNotificationIntervalMs = ulBufferDurationMs / NotificationCount_;
 
     *AudioBufferMdl_ = pBufferMdl;
     *ActualSize_ = RequestedSize_;
@@ -1029,7 +1029,7 @@ NTSTATUS CMiniportWaveRTStream::SetCurrentWritePositionInternal(_In_  ULONG _ulC
 //
 // Check for eMINIPORT_GLITCH_REPORT - Same WaveRT buffer write during event driven mode.
 //
-    if (m_ulNotificationIntervalMs > 0)
+    if (m_ulNotificationsPerBuffer > 0)
     {
         if (m_ulCurrentWritePosition == _ulCurrentWritePosition)
         {
@@ -1078,7 +1078,11 @@ NTSTATUS CMiniportWaveRTStream::SetState
             m_ullWritePosition = 0;
             m_ullLinearPosition = 0;
             m_ullPresentationPosition = 0;
-            
+            // Splitter: and what UpdatePosition carries over to its next
+            // call, which belongs to the run that stopped.
+            m_hnsElapsedTimeCarryForward = 0;
+            m_byteDisplacementCarryForward = 0;
+
             // Reset OS read/write positions
             m_ulLastOsReadPacket = ULONG_MAX;
             m_ulCurrentWritePosition = 0;
@@ -1104,27 +1108,11 @@ NTSTATUS CMiniportWaveRTStream::SetState
                 // Run -> Pause
                 //
 
-                // Pause DMA
-                if (m_ulNotificationIntervalMs > 0)
-                {
-                    ExCancelTimer(m_pNotificationTimer, NULL);
-                    KeFlushQueuedDpcs(); 
-
-                    // If pin is transitioning from RUN, save the time since last buffer completion event was sent 
-                    // so if the pin goes to RUN state again we can send the buffer completion event at correct time.
-                    if (m_ullLastDPCTimeStamp > 0)
-                    {
-                        LARGE_INTEGER qpc;
-                        LARGE_INTEGER qpcFrequency;
-                        LONGLONG  hnsCurrentTime;
-
-                        qpc = KeQueryPerformanceCounter(&qpcFrequency);
-
-                        // Convert ticks to 100ns units.
-                        hnsCurrentTime = KSCONVERT_PERFORMANCE_TIME(m_ullPerformanceCounterFrequency.QuadPart, qpc);
-                        m_hnsDPCTimeCarryForward = hnsCurrentTime - m_ullLastDPCTimeStamp + m_hnsDPCTimeCarryForward;
-                    }
-                }
+                // Pause DMA. Splitter: packets are counted from the
+                // position, which a pause keeps, so there is no time to
+                // carry over to the next run.
+                ExCancelTimer(m_pNotificationTimer, NULL);
+                KeFlushQueuedDpcs();
             }
             // This call updates the linear buffer and presentation positions.
             GetPositions(NULL, NULL, NULL);
@@ -1141,14 +1129,15 @@ NTSTATUS CMiniportWaveRTStream::SetState
             // Start DMA
             LARGE_INTEGER ullPerfCounterTemp;
             ullPerfCounterTemp = KeQueryPerformanceCounter(&m_ullPerformanceCounterFrequency);
-            m_ullLastDPCTimeStamp = m_ullDmaTimeStamp = KSCONVERT_PERFORMANCE_TIME(m_ullPerformanceCounterFrequency.QuadPart, ullPerfCounterTemp);
+            m_ullDmaTimeStamp = KSCONVERT_PERFORMANCE_TIME(m_ullPerformanceCounterFrequency.QuadPart, ullPerfCounterTemp);
 
-            if (m_ulNotificationIntervalMs > 0)
+            // Splitter: every running stream moves on this 1 ms timer
+            // (TimerNotifyRT), polling ones too, so a cable moves in 1 ms
+            // steps whichever mode its apps use. The sample set it only for
+            // event-driven streams: a polling stream's cable then moved
+            // only when its app asked for the position, in bursts.
+            if (m_ulDmaBufferSize > 0)
             {
-                // Set timer for 1 ms. This will cause DPC to run every 1 ms but driver will send out 
-                // notification events only after notification interval. This timer is used by Simple Audio Sample to 
-                // emulate hardware and send out notification event. Real hardware should not use this
-                // timer to fire notification event as it will drain power if the timer is running at 1 msec.
                 ExSetTimer
                 (
                     m_pNotificationTimer,
@@ -1191,6 +1180,13 @@ VOID CMiniportWaveRTStream::UpdatePosition
     _In_ LARGE_INTEGER ilQPC
 )
 {
+    // Splitter: without a buffer nothing moves (and the position below
+    // wraps at its size). SetState starts the timer only with one.
+    if (m_ulDmaBufferSize == 0)
+    {
+        return;
+    }
+
     // Convert ticks to 100ns units.
     LONGLONG  hnsCurrentTime = KSCONVERT_PERFORMANCE_TIME(m_ullPerformanceCounterFrequency.QuadPart, ilQPC);
     
@@ -1464,37 +1460,35 @@ TimerNotifyRT
 
     qpc = KeQueryPerformanceCounter(&qpcFrequency);
 
-    // Convert ticks to 100ns units.
-    LONGLONG  hnsCurrentTime = KSCONVERT_PERFORMANCE_TIME(_this->m_ullPerformanceCounterFrequency.QuadPart, qpc);
-
-    // Calculate the time elapsed since the last we ran DPC that matched Notification interval. Note that the division by 10000 
-    // to convert to milliseconds may cause us to lose some of the time, so we will carry the remainder forward.
-
-    ULONG TimeElapsedInMS = (ULONG)(hnsCurrentTime - _this->m_ullLastDPCTimeStamp + _this->m_hnsDPCTimeCarryForward)/10000;
-
-    if (TimeElapsedInMS >= _this->m_ulNotificationIntervalMs)
-    {
-        // Carry forward the time greater than notification interval to adjust time to signal next buffer completion event accordingly.
-        _this->m_hnsDPCTimeCarryForward = hnsCurrentTime - _this->m_ullLastDPCTimeStamp + _this->m_hnsDPCTimeCarryForward - (_this->m_ulNotificationIntervalMs * 10000);
-        // Save the last time DPC ran at notification interval
-        _this->m_ullLastDPCTimeStamp = hnsCurrentTime;
-        bufferCompleted = TRUE;
-    }
-
     // Splitter: move the position (and so the cable's audio) on every 1 ms
     // tick, not only once per packet: then both halves of a cable move in
     // 1 ms steps whatever packet sizes their clients use, and the ring's
     // 20 ms margin covers them (cablerule.h).
     _this->UpdatePosition(qpc);
 
+    // Splitter: a packet is complete once the position has moved past its
+    // end. The sample counted packets in whole milliseconds of time instead,
+    // which runs ahead of the data when a packet isn't a whole number of
+    // them (512 frames is 10.67 ms), and early after a stop and a restart.
+    // A late tick can finish two short packets at once, and sets the event
+    // only once: a capture client then gets the newest packet, a render
+    // client gets STATUS_DATA_LATE_ERROR from SetWritePacket and reads the
+    // count again.
+    if (_this->m_ulNotificationsPerBuffer > 0)
+    {
+        ULONG    packetSize = _this->m_ulDmaBufferSize / _this->m_ulNotificationsPerBuffer;
+        LONGLONG completed = packetSize > 0 ? (LONGLONG)(_this->m_ullLinearPosition / packetSize) : 0;
+
+        if (completed > _this->m_llPacketCounter)
+        {
+            _this->m_llPacketCounter = completed;
+            bufferCompleted = TRUE;
+        }
+    }
+
     if (!bufferCompleted && !_this->m_bEoSReceived)
     {
         goto End;
-    }
-
-    if (!_this->m_bEoSReceived)
-    {
-        _this->m_llPacketCounter++;
     }
 
     if (_this->m_KsState != KSSTATE_RUN)

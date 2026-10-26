@@ -80,8 +80,13 @@ a capture endpoint for each cable.
   for the eleven cables). (`Source/Utilities/cablering.*`)
 - **Clock:** both halves are clocked by the performance counter at exactly
   48 kHz, so they never drift apart. Both move the cable on the driver's
-  1 ms timer, whatever packet size their apps use, and the reader keeps a
-  20 ms margin behind the writer, which covers the timer jitter.
+  1 ms timer, whatever packet size their apps use and whether they are
+  event-driven or poll, and the reader keeps a 20 ms margin behind the
+  writer, which covers the timer jitter.
+  - A packet counts as done once the position has moved past its end, so
+    packets that aren't a whole number of milliseconds (512 frames is
+    10.67 ms) stay in step with the audio. Packets shorter than 1 ms are
+    refused.
   - The cable's latency is about 30 ms.
   - If nothing plays into a cable, it records silence.
   - If the recorder falls far behind, it skips ahead rather than playing
@@ -215,6 +220,8 @@ Still to check on a real PC in test mode:
 - all twenty-two endpoints appear with their names, and the bus cables'
   recording halves show as microphones;
 - audio passes through each cable in all three formats;
+- an app in exclusive mode, event-driven with 512-frame packets, and one
+  that polls;
 - the latency;
 - running for a long time without glitches;
 - install, update (0.2.0 over 0.2.0) and uninstall, and that BananaSplit
