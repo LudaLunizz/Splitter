@@ -6,7 +6,8 @@ kernel code so they are unit-tested on any computer (tests/cablerule_test.cpp):
   - the reader's cursor: where a capture stream reads and how much of it is
     audio rather than silence;
   - conversion between the halves' sample formats and the ring's 32-bit
-    float.
+    float;
+  - the time conversion behind the packet times a capture stream reports.
 
 Copyright (c) the BananaSplit authors. MIT licence (see LICENSE).
 
@@ -215,6 +216,19 @@ static __inline void CableEncode(const FLOAT* Src, ULONG Fmt, UCHAR* Dst, ULONG 
             memcpy(Dst + 4 * i, &v, sizeof(v));
         }
     }
+}
+
+//=============================================================================
+// Time
+//
+// 100 ns units -> performance counter ticks, Frequency of them a second:
+// Hns * Frequency / 10^7, without the 64-bit overflow of that product, which
+// at the usual 10 MHz comes once Hns is past 51 hours (of uptime: these are
+// times since boot).
+//
+static __inline ULONGLONG CableHnsToQpc(ULONGLONG Hns, ULONGLONG Frequency)
+{
+    return (Hns / 10000000) * Frequency + (Hns % 10000000) * Frequency / 10000000;
 }
 
 #endif // _SPLITTER_CABLERULE_H_

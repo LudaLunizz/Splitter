@@ -749,7 +749,7 @@ NTSTATUS CMiniportWaveRTStream::GetReadPacket
     availablePacketNumber = LODWORD(packetCounter - 1);  // Note this might be ULONG_MAX if called during the first packet
 
     // If no new packets are available...
-    if (availablePacketNumber == m_ulLastOsReadPacket)
+    if (packetCounter == 0 || availablePacketNumber == m_ulLastOsReadPacket)
     {
         return STATUS_DEVICE_NOT_READY;
     }
@@ -765,18 +765,22 @@ NTSTATUS CMiniportWaveRTStream::GetReadPacket
     // Return next packet number to be read
     *PacketNumber = availablePacketNumber;
 
-    // Compute and return timestamp corresponding to the end of the available packet. In a real hardware
-    // driver, the timestamp would be computed in a driver and hardware specific manner. In this sample
-    // driver, it is extrapolated from the sample driver's internal simulated position correlation
-    // [m_ullLinearPosition @ m_ullDmaTimeStamp] and the sample's internal 64-bit packet counter, subtracting
-    // 1 from the packet counter to compute the time at the start of that last completed packet.
-    ULONGLONG linearPositionOfAvailablePacket = packetCounter * (m_ulDmaBufferSize / m_ulNotificationsPerBuffer);
+    // Compute and return the timestamp of the start of the available packet: the OS wants the sampling
+    // instant of its first sample. In a real hardware driver, the timestamp would be computed in a driver
+    // and hardware specific manner. In this sample driver, it is extrapolated from the sample driver's
+    // internal simulated position correlation [m_ullLinearPosition @ m_ullDmaTimeStamp] and the sample's
+    // internal 64-bit packet counter, subtracting 1 from the packet counter to compute the time at the
+    // start of that last completed packet.
+    // Splitter: the sample computed the packet's end, one packet late, and turned 100 ns units into
+    // performance counter ticks as hns * frequency, which overflows 64 bits after 51 hours of uptime at
+    // the usual 10 MHz (CableHnsToQpc).
+    ULONGLONG linearPositionOfAvailablePacket = (ULONGLONG)(packetCounter - 1) * (m_ulDmaBufferSize / m_ulNotificationsPerBuffer);
     // Need to divide by (1000 * 10000 because m_ulDmaMovementRate is average bytes per sec
     ULONGLONG carryForwardBytes = (hnsElapsedTimeCarryForward * m_ulDmaMovementRate) / 10000000;
     ULONGLONG deltaLinearPosition = ullLinearPosition + carryForwardBytes - linearPositionOfAvailablePacket;
     ULONGLONG deltaTimeInHns = deltaLinearPosition * 10000000 / m_ulDmaMovementRate;
     ULONGLONG timeOfAvailablePacketInHns = ullDmaTimeStamp - deltaTimeInHns;
-    ULONGLONG timeOfAvailablePacketInQpc = timeOfAvailablePacketInHns * m_ullPerformanceCounterFrequency.QuadPart / 10000000;
+    ULONGLONG timeOfAvailablePacketInQpc = CableHnsToQpc(timeOfAvailablePacketInHns, (ULONGLONG)m_ullPerformanceCounterFrequency.QuadPart);
 
     *PerformanceCounterValue = timeOfAvailablePacketInQpc;
 
