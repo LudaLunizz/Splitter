@@ -309,6 +309,62 @@ static void test_integer_audio_passes_unchanged() {
     }
 }
 
+// Hns * Frequency / 10^7 exactly, in 128 bits of 32-bit limbs: a reference
+// that shares no arithmetic with CableHnsToQpc. Sets *fits to whether the
+// result fits 64 bits.
+static ULONGLONG ref_hns_to_qpc(ULONGLONG hns, ULONGLONG freq, bool* fits) {
+    const uint64_t a[2] = {hns & 0xFFFFFFFFu, hns >> 32}, b[2] = {freq & 0xFFFFFFFFu, freq >> 32};
+    uint64_t p[4] = {0, 0, 0, 0};
+    for (int i = 0; i < 2; i++) {
+        uint64_t carry = 0;
+        for (int j = 0; j < 2; j++) {
+            uint64_t t = a[i] * b[j] + p[i + j] + carry;
+            p[i + j] = t & 0xFFFFFFFFu;
+            carry = t >> 32;
+        }
+        p[i + 2] += carry;
+    }
+    uint64_t q[4], rem = 0;
+    for (int k = 3; k >= 0; k--) {
+        uint64_t cur = (rem << 32) | p[k];
+        q[k] = cur / 10000000;
+        rem = cur % 10000000;
+    }
+    *fits = q[2] == 0 && q[3] == 0;
+    return (q[1] << 32) | q[0];
+}
+
+static void test_packet_times_to_performance_counter() {
+    // Capture packet times are kept in 100 ns units since boot and handed to
+    // Windows in performance counter ticks. The usual frequency is 10 MHz
+    // (then the conversion changes nothing), older PCs use 3.58 or 14.3 MHz.
+    const ULONGLONG hour = 36000000000ull;
+    const ULONGLONG freqs[] = {10000000ull, 3579545ull, 14318180ull, 24000000ull, 0xFFFFFFFFull};
+    std::vector<ULONGLONG> times = {0, 1, 9999999, 10000000, 51 * hour, 52 * hour,
+                                    1844674407370ull, 1844674407371ull, 24 * 365 * hour, 30 * 24 * 365 * hour};
+    unsigned seed = 4321;
+    for (int k = 0; k < 2000; k++) {
+        seed = seed * 1103515245u + 12345u;
+        ULONGLONG hi = seed;
+        seed = seed * 1103515245u + 12345u;
+        times.push_back(((hi << 32) | seed) >> (k % 40));
+    }
+    for (ULONGLONG f : freqs) {
+        for (ULONGLONG t : times) {
+            bool fits;
+            ULONGLONG want = ref_hns_to_qpc(t, f, &fits);
+            if (fits) CHECK(CableHnsToQpc(t, f) == want);
+        }
+    }
+    // at 10 MHz it is the identity, also long after the 51 hours where the
+    // sample's hns * frequency / 10^7 wrapped
+    for (ULONGLONG t : times) {
+        if (t <= (1ull << 62)) CHECK(CableHnsToQpc(t, 10000000ull) == t);
+    }
+    ULONGLONG t52 = 52 * hour;
+    CHECK(t52 * 10000000ull / 10000000ull != t52);
+}
+
 int main() {
     test_waits_for_margin_then_plays_in_order();
     test_jitter_within_margin_never_drops_or_repeats();
@@ -317,6 +373,7 @@ int main() {
     test_huge_write_keeps_newest();
     test_formats_round_trip();
     test_integer_audio_passes_unchanged();
+    test_packet_times_to_performance_counter();
     if (failures) {
         std::printf("%d check(s) failed\n", failures);
         return 1;
