@@ -7,7 +7,7 @@ body:
     attributes:
       label: Splitter version
       description: The version in the zip's name, or the driver version in Device Manager (Sound, video and game controllers ▸ Splitter Cables ▸ Driver)
-      placeholder: Splitter 0.2.0
+      placeholder: Splitter 0.2.1
     validations:
       required: true
   - type: input
