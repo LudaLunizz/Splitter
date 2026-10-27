@@ -156,20 +156,38 @@ if (-not $NoTestSign) {
         }
     }
     if (-not $signtool) { throw "signtool.exe not found under $packages or $kits" }
-    if ($CertificatePfx) {
-        $sec = ConvertTo-SecureString -String $CertificatePassword -AsPlainText -Force
-        $cert = Import-PfxCertificate -FilePath $CertificatePfx -Password $sec -CertStoreLocation Cert:\CurrentUser\My
-    } else {
-        $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Splitter test signing (BananaSplit)' `
-            -CertStoreLocation Cert:\CurrentUser\My -KeyUsage DigitalSignature -KeyExportPolicy Exportable `
-            -NotAfter (Get-Date).AddYears(3)
+    # The certificate is in the user's store only while signing, and leaves
+    # it with its private key (-DeleteKey), also when signing fails:
+    # install.ps1 makes every test PC trust this certificate, so a key left
+    # on the build PC could sign drivers those PCs would load. Removing the
+    # certificate alone left the key behind. A -CertificatePfx that was in
+    # the store before stays there.
+    $cert = $null
+    $keep = $false
+    try {
+        if ($CertificatePfx) {
+            $sec = ConvertTo-SecureString -String $CertificatePassword -AsPlainText -Force
+            $tp = @((Get-PfxData -FilePath $CertificatePfx -Password $sec).EndEntityCertificates)[0].Thumbprint
+            $keep = [bool]$tp -and (Test-Path "Cert:\CurrentUser\My\$tp")
+            $cert = Import-PfxCertificate -FilePath $CertificatePfx -Password $sec -CertStoreLocation Cert:\CurrentUser\My |
+                Where-Object { $_.HasPrivateKey } | Select-Object -First 1
+            if (-not $cert) { throw "$CertificatePfx holds no certificate with a private key" }
+        } else {
+            # Not exportable: nothing needs the key outside this build.
+            $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Splitter test signing (BananaSplit)' `
+                -CertStoreLocation Cert:\CurrentUser\My -KeyUsage DigitalSignature -KeyExportPolicy NonExportable `
+                -NotAfter (Get-Date).AddYears(3)
+        }
+        foreach ($f in 'splitter.sys', 'splitter.cat') {
+            & $signtool sign /fd sha256 /sha1 $cert.Thumbprint /s My (Join-Path $out "driver\$f")
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed on $f ($LASTEXITCODE)" }
+        }
+        Export-Certificate -Cert $cert -FilePath (Join-Path $out 'splitter-test.cer') -Type CERT | Out-Null
+    } finally {
+        if ($cert -and -not $keep) {
+            Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -DeleteKey
+        }
     }
-    foreach ($f in 'splitter.sys', 'splitter.cat') {
-        & $signtool sign /fd sha256 /sha1 $cert.Thumbprint /s My (Join-Path $out "driver\$f")
-        if ($LASTEXITCODE -ne 0) { throw "signtool failed on $f ($LASTEXITCODE)" }
-    }
-    Export-Certificate -Cert $cert -FilePath (Join-Path $out 'splitter-test.cer') -Type CERT | Out-Null
-    if (-not $CertificatePfx) { Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" }
 }
 
 # Installer, licences, read-me
