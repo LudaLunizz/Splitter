@@ -24,8 +24,8 @@ li { margin-bottom: 1pt; }
 </style></head><body>
 
 <h1>Splitter Windows Test</h1>
-<div class="sub">Test package <code>splitter-0.2.0-fixes-PR1-910df64-windows-x64.zip</code> (built by CI run 40563919244; it still says 0.2.0 inside) ·
-for pull request #1 of github.com/LudaLunizz/Splitter · about 1½ hours plus a long run</div>
+<div class="sub">Test package <code>splitter-0.2.1-windows-x64.zip</code> (built by the CI of pull request #2, which holds #1's fixes too) ·
+Splitter 0.2.1, github.com/LudaLunizz/Splitter · about 1¾ hours plus a long run</div>
 
 <div class="box">
 <b>How to fill it in:</b> for every row write <b>OK</b>, <b>FAIL</b> or <b>skipped</b> in the right column. On a FAIL, write down what you saw
@@ -47,16 +47,21 @@ for pull request #1 of github.com/LudaLunizz/Splitter · about 1½ hours plus a 
 <table>
 <tr><td class="n">A1</td><td><b>If 0.1.0 is installed:</b> unzip the test package and double-click <code>install.cmd</code>. Expect: "Splitter 0.1.0 is installed … run
 uninstall.cmd" and "Nothing was changed". Then run this package's <code>uninstall.cmd</code>, restart if it asks, and go on with A2.</td><td class="r"></td></tr>
-<tr><td class="n">A2</td><td>Double-click <code>install.cmd</code> and allow it to make changes. Expect: "Installing Splitter (eleven cables)…" (or "updating its driver" if
+<tr><td class="n">A2</td><td>Double-click <code>install.cmd</code> and allow it to make changes (Windows asks <b>once</b>; a second or third
+"allow changes" prompt is a FAIL). Expect: "Installing Splitter (eleven cables)…" (or "updating its driver" if
 v0.2.0 was installed), then a list of <b>22 cables</b>, each ending in "(Splitter Cables)". <b>No red text</b>, in particular not
 "The property 'Count' cannot be found". <span class="ex">If it says a restart is needed, restart and look again.</span></td><td class="r"></td></tr>
 <tr><td class="n">A3</td><td><b>Playback</b> devices (Sound settings › More sound settings › Playback): <b>Splitter 1</b> to <b>Splitter 6</b>, and <b>Splitter A1 Input</b>,
 A2, A3, B1, B2 Input: 11 in all.</td><td class="r"></td></tr>
 <tr><td class="n">A4</td><td><b>Recording</b> devices: <b>Splitter 1 Output</b> to <b>Splitter 6 Output</b>, and <b>Splitter A1</b>, A2, A3, B1, B2: 11 in all.
 Splitter A1 to B2 show as <b>microphones</b>.</td><td class="r"></td></tr>
-<tr><td class="n">A5</td><td>Device Manager › Sound, video and game controllers: <b>one</b> "Splitter Cables", with no yellow warning sign.</td><td class="r"></td></tr>
+<tr><td class="n">A5</td><td>Device Manager › Sound, video and game controllers: <b>one</b> "Splitter Cables", with no yellow warning sign.
+Its Properties › Driver tab says <b>Driver Version 0.2.1.0</b>.</td><td class="r"></td></tr>
 <tr><td class="n">A6</td><td>Run <code>install.cmd</code> <b>a second time</b>. Expect: "Splitter is installed already: updating its driver…", no red text, the same 22 cables,
 and still only one "Splitter Cables" in Device Manager.</td><td class="r"></td></tr>
+<tr><td class="n">A7</td><td><b>Disabled device:</b> in Device Manager, right-click "Splitter Cables" › Disable device, then run <code>install.cmd</code>.
+Expect, in yellow, "Splitter is installed, but its device is disabled" and how to enable it; no red text, and it does <b>not</b> say a restart
+will bring the cables. Then right-click › Enable device: the 22 cables come back.</td><td class="r"></td></tr>
 </table>
 
 <h2>B. BananaSplit</h2>
@@ -83,12 +88,15 @@ for one minute. Smooth, no gaps or bursts?</td><td class="r"></td></tr>
 feels larger than a TV that's slightly out of sync (it should be about 30 ms).</td><td class="r"></td></tr>
 <tr><td class="n">C5</td><td><b>Long run:</b> leave music playing through Splitter 1 into BananaSplit for <b>at least 1 hour</b> (overnight is better). Afterwards:
 still clean, no crackle, and the sound hasn't drifted out of sync.</td><td class="r"></td></tr>
+<tr><td class="n">C6</td><td><b>Sleep:</b> while music plays into Splitter 1 and BananaSplit listens, put the PC to sleep (Start › Power › Sleep) for a
+minute and wake it. Within a few seconds the music comes through BananaSplit again, clean; Windows doesn't freeze or blue-screen on waking.</td><td class="r"></td></tr>
 </table>
 
 <h2>D. Remove</h2>
 <table>
-<tr><td class="n">D1</td><td>Double-click <code>uninstall.cmd</code>. Expect "Splitter is removed." (or "… Restart Windows to finish"; then restart). The Splitter
-cables are gone from Sound settings and Device Manager.</td><td class="r"></td></tr>
+<tr><td class="n">D1</td><td>Double-click <code>uninstall.cmd</code>. Expect "Removing test certificate … from Root" and "… from TrustedPublisher", then
+"Splitter is removed." (or "… Restart Windows to finish"; then restart). The Splitter cables are gone from Sound settings and Device
+Manager.</td><td class="r"></td></tr>
 <tr><td class="n">D2</td><td>Run <code>install.cmd</code> again, then go over A3, A4 and B1 once more. All 22 cables are back.</td><td class="r"></td></tr>
 <tr><td class="n">D3</td><td>BananaSplit's other cards and audio devices (speakers, headset, any VB-Audio cables) still work.</td><td class="r"></td></tr>
 </table>
