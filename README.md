@@ -175,10 +175,14 @@ Unzip the package and run `install.cmd`. Running it again updates the
 driver. Running `uninstall.cmd` removes everything again. The package's
 `README.txt` explains both.
 
-If 0.1.0 is installed, run its `uninstall.cmd` first. 0.2.0 renamed the
-device ("Splitter Virtual Cables" became "Splitter Cables"), and Windows may
-keep the old name on the endpoints it already knows, which BananaSplit
-doesn't recognise.
+If 0.1.0 is installed, run `uninstall.cmd` first (this package's or
+0.1.0's: both remove it). 0.2.0 renamed the device ("Splitter Virtual
+Cables" became "Splitter Cables"), and Windows may keep the old name on the
+endpoints it already knows, which BananaSplit doesn't recognise. So
+`install.cmd` stops when it finds 0.1.0 or its cables, and says so.
+
+Splitter runs on x64 PCs only. Windows on ARM can't load an x64 driver, so
+`install.cmd` stops on an ARM PC and says why.
 
 ## Signing: why this build only runs in test mode
 
