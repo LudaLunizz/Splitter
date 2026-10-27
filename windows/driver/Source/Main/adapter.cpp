@@ -48,14 +48,10 @@ DRIVER_DISPATCH PnpHandler;
 // The cables' rings are shared by the render and capture miniports of the
 // same number (cablering.h).
 C_ASSERT(SPLITTER_CABLE_COUNT == CABLE_RING_COUNT);
-
-// Splitter: the device whose endpoints use the cables. The rings are global
-// (one per cable for the whole driver), so a second Splitter device would
-// play and record through the same eleven rings as the first: two
-// "Splitter 1" devices, each hearing the other's apps, and two capture
-// streams taking turns at one reader. Only one device starts; a second one
-// fails to start (Device Manager shows code 10) until the first is removed.
-static PVOID volatile g_CablesOwner = NULL;
+//
+// The rings are global, one per cable for the whole driver, so only one
+// Splitter device may run: NewAdapterCommon (common.cpp) refuses a second
+// adapter object, and a second device fails to start (code 10).
 UNICODE_STRING g_RegistryPath;      // This is used to store the registry settings path for the driver
 
 //-----------------------------------------------------------------------------
@@ -647,17 +643,6 @@ Return Value:
     DPF_ENTER(("[StartDevice]"));
 
     //
-    // Splitter: the cables belong to one device (g_CablesOwner). The same
-    // device starting again (after a stop) still owns them.
-    //
-    PVOID owner = InterlockedCompareExchangePointer(&g_CablesOwner, DeviceObject, NULL);
-    if (owner != NULL && owner != DeviceObject)
-    {
-        DPF(D_ERROR, ("[StartDevice] another Splitter device has the cables"));
-        return STATUS_DEVICE_BUSY;
-    }
-
-    //
     // create a new adapter common object
     //
     ntStatus = NewAdapterCommon( 
@@ -774,15 +759,6 @@ Return Value:
 
     default:
         break;
-    }
-
-    //
-    // Splitter: the cables are free for another device once this one is
-    // removed (its streams are closed by then).
-    //
-    if (stack->MinorFunction == IRP_MN_REMOVE_DEVICE)
-    {
-        InterlockedCompareExchangePointer(&g_CablesOwner, NULL, _DeviceObject);
     }
     
     ntStatus = PcDispatchIrp(_DeviceObject, _Irp);
