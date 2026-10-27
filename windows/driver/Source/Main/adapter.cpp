@@ -388,6 +388,7 @@ InstallEndpointRenderFilters(
     )
 {
     NTSTATUS                    ntStatus                = STATUS_SUCCESS;
+    NTSTATUS                    ntStatusInstall         = STATUS_SUCCESS;
     PUNKNOWN                    unknownTopology         = NULL;
     PUNKNOWN                    unknownWave             = NULL;
     PPORTCLSETWHELPER           pPortClsEtwHelper       = NULL;
@@ -408,6 +409,13 @@ InstallEndpointRenderFilters(
         &unknownTopology,
         &unknownWave,
         NULL, NULL);
+
+    // Splitter: what the endpoint's installation returned is the result.
+    // The sample returned the status of the last optional call below
+    // instead (a QueryInterface for IPortClsStreamResourceManager2, say), so
+    // an interface Windows doesn't offer failed the whole device start, and
+    // a failed installation could be reported as success.
+    ntStatusInstall = ntStatus;
 
     if (unknownWave) // IID_IPortClsEtwHelper and IID_IPortClsRuntimePower interfaces are only exposed on the WaveRT port.
     {
@@ -514,7 +522,7 @@ InstallEndpointRenderFilters(
     SAFE_RELEASE(unknownTopology);
     SAFE_RELEASE(unknownWave);
 
-    return ntStatus;
+    return ntStatusInstall;
 }
 
 #pragma code_seg("PAGE")
