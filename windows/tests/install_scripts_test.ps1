@@ -148,6 +148,8 @@ $cases = @(
        want = @('Splitter 0.1.0 is installed'); not = @('CALL') }
     @{ name = 'second Splitter device with new names is not 0.1.0'; script = $install; case = @{ after = @(@{}); endpoints = @('Splitter 1 (2- Splitter Cables)') }; exit = 0
        want = @('CALL CreateAndInstall', 'Splitter 1 (2- Splitter Cables)'); not = @('0.1.0') }
+    @{ name = 'two Splitter devices'; script = $install; case = @{ before = @(@{}, @{ id = 'ROOT\MEDIA\0001' }) }; exit = 1
+       want = @('There are 2 Splitter devices', 'run uninstall.cmd', 'Nothing was changed'); not = @('CALL') }
     @{ name = 'update one 0.2.0 device, restart'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 38 }) }; exit = 0
        want = @('updating its driver', 'CALL Update', 'appear after the restart', 'asks for a restart'); not = @('CreateAndInstall') }
     @{ name = 'driver not started (code 52)'; script = $install; case = @{ after = @(@{ code = 52 }) }; exit = 1
