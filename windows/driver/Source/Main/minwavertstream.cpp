@@ -1455,7 +1455,10 @@ Return Value:
     DPF_ENTER(("[CMiniportWaveRT::SetContentId]"));
 
     NTSTATUS    ntStatus;
-    ULONG       ulOldContentId = contentId;
+    // Splitter: the id to go back to is the stream's current one. The sample
+    // kept the new one here, so a refused id stayed on the stream and went
+    // into every later mix of the streams' rights (UpdateDrmRights).
+    ULONG       ulOldContentId = m_ulContentId;
 
     m_ulContentId = contentId;
 
@@ -1474,9 +1477,17 @@ Return Value:
 
     //
     // Splitter: a cable makes what is played into it recordable, so content
-    // marked copy-protected goes through as silence.
+    // marked copy-protected goes through as silence. Protection is never
+    // lifted by an id that was refused.
     //
-    m_bCopyProtected = drmRights->CopyProtect ? TRUE : FALSE;
+    if (drmRights->CopyProtect)
+    {
+        m_bCopyProtected = TRUE;
+    }
+    else if (NT_SUCCESS(ntStatus))
+    {
+        m_bCopyProtected = FALSE;
+    }
 
     //
     // From MSDN:
