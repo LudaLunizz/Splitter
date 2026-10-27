@@ -114,6 +114,19 @@ if ($old) {
     ) -join [Environment]::NewLine)
 }
 
+# The driver gives its cables to one device only (a second one would share
+# them); any other fails to start with code 10. So more than one is a
+# mistake, made by hand: start again with one.
+if ($existing.Count -gt 1) {
+    Fail (@(
+        "There are $($existing.Count) Splitter devices on this PC; Splitter works with one:",
+        '  1. run uninstall.cmd from this folder (it removes all of them);',
+        '  2. restart the PC if it asks for that;',
+        '  3. run install.cmd again, which creates one.',
+        'Nothing was changed.'
+    ) -join [Environment]::NewLine)
+}
+
 $cer = Join-Path $here 'splitter-test.cer'
 if (Test-Path $cer) {
     # A test build: Windows loads it only in test-signing mode.
