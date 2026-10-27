@@ -16,7 +16,8 @@
         that apps use as a microphone.
 
     This script:
-      - checks Windows (10 version 2004 or later, 64-bit);
+      - checks Windows (10 version 2004 or later, 64-bit, not ARM);
+      - stops if Splitter 0.1.0 is installed (uninstall.cmd removes it);
       - for a test-signed package (splitter-test.cer next to this script):
         checks that test signing is on and trusts the certificate on this PC;
       - adds the driver to the driver store and creates the device, or
@@ -45,22 +46,80 @@ function Fail([string] $text) {
     exit 1
 }
 
+# A registry value, or $null if it isn't there. (Get-ItemProperty ...).Name
+# would stop the script instead: strict mode doesn't allow a property of
+# nothing.
+function Get-RegistryValue([string] $path, [string] $name) {
+    try { (Get-ItemProperty -Path $path -Name $name -ErrorAction Stop).$name } catch { $null }
+}
+
 # --- checks ----------------------------------------------------------------
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Fail 'Run install.cmd (it asks for administrator rights).'
+}
+# The PC's own processor, not this PowerShell's: an emulated x64 PowerShell
+# on an ARM PC reports AMD64 in its environment, but this registry value
+# stays ARM64. Is64BitOperatingSystem is true on ARM64 Windows too.
+$arch = Get-RegistryValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' 'PROCESSOR_ARCHITECTURE'
+if (-not $arch) { $arch = $env:PROCESSOR_ARCHITECTURE }
+if ("$arch" -match 'ARM') {
+    Fail (@(
+        "This PC has an ARM processor ($arch). Splitter's driver is built for x64 PCs only,",
+        'and Windows on ARM can''t load an x64 driver, so Splitter can''t run on this PC.',
+        'Nothing was changed.'
+    ) -join [Environment]::NewLine)
 }
 if (-not [Environment]::Is64BitOperatingSystem) { Fail 'Splitter needs 64-bit Windows.' }
 $build = [Environment]::OSVersion.Version.Build
 if ($build -lt 19041) { Fail "Splitter needs Windows 10 version 2004 (build 19041) or later; this is build $build." }
 if (-not (Test-Path $inf)) { Fail "driver\splitter.inf is missing next to this script." }
 
+function Get-SplitterDevices {
+    @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
+}
+
+# @() here, not only inside the function: PowerShell unrolls what a function
+# returns, so one device would come back as a single object and none as
+# $null, and with strict mode on, Windows PowerShell 5.1 can't take .Count
+# of a single object.
+$existing = @(Get-SplitterDevices)
+
+# 0.1.0 had the same hardware id, so updating would put this driver on it in
+# place. But 0.2.0 renamed the device ("Splitter Virtual Cables" became
+# "Splitter Cables"), and Windows may keep the old name on the endpoints it
+# knows, which BananaSplit doesn't recognise. So 0.1.0 has to go first. This
+# package's uninstall.cmd removes it (same hardware id, same INF name).
+$old = $false
+foreach ($d in $existing) {
+    if ($d.Name -eq 'Splitter Virtual Cables') { $old = $true }
+    $ver = $null
+    try {
+        $ver = (Get-PnpDeviceProperty -InstanceId $d.PNPDeviceID -KeyName 'DEVPKEY_Device_DriverVersion' -ErrorAction Stop).Data
+    } catch { }
+    if ("$ver" -like '0.1.*') { $old = $true }
+}
+if (@(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
+        Where-Object { $_.Name -match '\((\d+- )?Splitter Virtual Cables\)$' }).Count -gt 0) {
+    $old = $true
+}
+if ($old) {
+    Fail (@(
+        'Splitter 0.1.0 is installed, or its cables are still there (they are called',
+        '"... (Splitter Virtual Cables)"). It has to be removed before this version is installed:',
+        '  1. run uninstall.cmd from this folder;',
+        '  2. restart the PC if it asks for that;',
+        '  3. run install.cmd again.',
+        'Nothing was changed.'
+    ) -join [Environment]::NewLine)
+}
+
 $cer = Join-Path $here 'splitter-test.cer'
 if (Test-Path $cer) {
     # A test build: Windows loads it only in test-signing mode.
     # The options this boot started with (the same in every language,
     # unlike bcdedit's output): TESTSIGNING is there in test-signing mode.
-    $start = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name SystemStartOptions -ErrorAction SilentlyContinue).SystemStartOptions
+    $start = Get-RegistryValue 'HKLM:\SYSTEM\CurrentControlSet\Control' 'SystemStartOptions'
     $testsigning = "$start" -match '\bTESTSIGNING\b'
     if (-not $testsigning -and -not $Force) {
         Fail (@(
@@ -175,11 +234,6 @@ public static class SplitterSetup
 }
 '@
 
-function Get-SplitterDevices {
-    @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
-}
-
-$existing = Get-SplitterDevices
 try {
     if ($existing.Count -gt 0) {
         Write-Host 'Splitter is installed already: updating its driver...'
@@ -194,16 +248,26 @@ try {
 }
 
 # --- report ----------------------------------------------------------------
+Start-Sleep -Seconds 2
+# Problem code 14 means a restart finishes the job, and so does any code
+# while Windows asks for a restart (38 after an update: the old driver is
+# still loaded). Any other code means Windows did not start the driver, and
+# then no cables appear.
 $dev = Get-SplitterDevices | Select-Object -First 1
-if ($dev -and $dev.ConfigManagerErrorCode -ne 0) {
+$problem = 0
+if ($dev) { $problem = $dev.ConfigManagerErrorCode }
+if ($problem -eq 14 -or ($problem -ne 0 -and $reboot)) {
+    $reboot = $true
+} elseif ($problem -ne 0) {
     Write-Host ''
-    Write-Host ("The Splitter device reports problem code {0}." -f $dev.ConfigManagerErrorCode) -ForegroundColor Yellow
-    if ($dev.ConfigManagerErrorCode -eq 52) {
+    Write-Host ("The driver is installed, but Windows did not start it (problem code {0}), so there are no cables." -f $problem) -ForegroundColor Red
+    if ($problem -eq 52) {
         Write-Host 'Code 52: Windows does not accept the driver''s signature (test signing off?).' -ForegroundColor Yellow
     }
+    Write-Host 'Details: Device Manager > Sound, video and game controllers > Splitter Cables, and C:\Windows\INF\setupapi.dev.log'
+    exit 1
 }
 
-Start-Sleep -Seconds 2
 # Windows writes "(2- Splitter Cables)" for a second Splitter device.
 $endpoints = @(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
     Where-Object { $_.Name -match '\((\d+- )?Splitter Cables\)$' } | Sort-Object Name)
@@ -214,6 +278,8 @@ if ($endpoints.Count -gt 0) {
     Write-Host ''
     Write-Host 'In an app, choose "Splitter N" as its output to send it to BananaSplit''s input strip N,'
     Write-Host 'or "Splitter B1" (say) as its microphone to hear BananaSplit''s bus B1.'
+} elseif ($reboot) {
+    Write-Host 'Splitter is installed; its cables appear after the restart.'
 } else {
     Write-Host 'Splitter is installed; its cables appear in the sound settings in a moment.'
 }

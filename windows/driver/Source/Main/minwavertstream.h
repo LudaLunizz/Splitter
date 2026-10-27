@@ -50,7 +50,6 @@ protected:
     PPORTWAVERTSTREAM           m_pPortStream;
     LIST_ENTRY                  m_NotificationList;
     PEX_TIMER                   m_pNotificationTimer;
-    ULONG                       m_ulNotificationIntervalMs;
     ULONG                       m_ulCurrentWritePosition;
     LONG                        m_IsCurrentWritePositionUpdated;
     
@@ -100,8 +99,6 @@ protected:
     ULONGLONG                   m_ullDmaTimeStamp;
     LARGE_INTEGER               m_ullPerformanceCounterFrequency;
     ULONGLONG                   m_hnsElapsedTimeCarryForward;
-    ULONGLONG                   m_ullLastDPCTimeStamp;
-    ULONGLONG                   m_hnsDPCTimeCarryForward;
     ULONG                       m_byteDisplacementCarryForward;
     ULONG                       m_ulDmaMovementRate;
     BOOL                        m_bLfxEnabled;

@@ -80,8 +80,13 @@ a capture endpoint for each cable.
   for the eleven cables). (`Source/Utilities/cablering.*`)
 - **Clock:** both halves are clocked by the performance counter at exactly
   48 kHz, so they never drift apart. Both move the cable on the driver's
-  1 ms timer, whatever packet size their apps use, and the reader keeps a
-  20 ms margin behind the writer, which covers the timer jitter.
+  1 ms timer, whatever packet size their apps use and whether they are
+  event-driven or poll, and the reader keeps a 20 ms margin behind the
+  writer, which covers the timer jitter.
+  - A packet counts as done once the position has moved past its end, so
+    packets that aren't a whole number of milliseconds (512 frames is
+    10.67 ms) stay in step with the audio. Packets shorter than 1 ms are
+    refused.
   - The cable's latency is about 30 ms.
   - If nothing plays into a cable, it records silence.
   - If the recorder falls far behind, it skips ahead rather than playing
@@ -90,7 +95,8 @@ a capture endpoint for each cable.
   These rules are plain arithmetic in `Source/Utilities/cablerule.h`, and
   `tests/cablerule_test.cpp` tests them on any computer.
 - **Formats:** 48 kHz stereo, in 16-bit, 24-bit (the default) or 32-bit
-  float. NaN and infinity become silence.
+  float. NaN and infinity become silence. 16-bit and 24-bit audio comes
+  out exactly as it went in, sample for sample.
 - **Copy-protected content:** it plays as silence. The driver doesn't claim
   DRM support.
 - **Names:** the INF writes each endpoint's name, in the device's own
@@ -169,10 +175,14 @@ Unzip the package and run `install.cmd`. Running it again updates the
 driver. Running `uninstall.cmd` removes everything again. The package's
 `README.txt` explains both.
 
-If 0.1.0 is installed, run its `uninstall.cmd` first. 0.2.0 renamed the
-device ("Splitter Virtual Cables" became "Splitter Cables"), and Windows may
-keep the old name on the endpoints it already knows, which BananaSplit
-doesn't recognise.
+If 0.1.0 is installed, run `uninstall.cmd` first (this package's or
+0.1.0's: both remove it). 0.2.0 renamed the device ("Splitter Virtual
+Cables" became "Splitter Cables"), and Windows may keep the old name on the
+endpoints it already knows, which BananaSplit doesn't recognise. So
+`install.cmd` stops when it finds 0.1.0 or its cables, and says so.
+
+Splitter runs on x64 PCs only. Windows on ARM can't load an x64 driver, so
+`install.cmd` stops on an ARM PC and says why.
 
 ## Signing: why this build only runs in test mode
 
@@ -207,13 +217,18 @@ Version 0.2.0 has not been run on a real PC yet. What has been checked:
   with no new warnings;
 - `tests/inf_check.py` checks that the INF, the endpoint GUIDs and the
   filter tables agree for all eleven cables;
-- `tests/cablerule_test.cpp` passes.
+- `tests/cablerule_test.cpp` passes;
+- `tests/install_scripts_test.ps1` runs `install.ps1` and `uninstall.ps1`
+  under pwsh 7 with stand-ins for the Windows parts (20 cases). It can't
+  show what differs in Windows PowerShell 5.1, which `install.cmd` starts.
 
 Still to check on a real PC in test mode:
 
 - all twenty-two endpoints appear with their names, and the bus cables'
   recording halves show as microphones;
 - audio passes through each cable in all three formats;
+- an app in exclusive mode, event-driven with 512-frame packets, and one
+  that polls;
 - the latency;
 - running for a long time without glitches;
 - install, update (0.2.0 over 0.2.0) and uninstall, and that BananaSplit

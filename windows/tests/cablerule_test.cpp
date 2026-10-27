@@ -239,17 +239,17 @@ static void test_formats_round_trip() {
         CableDecode(bytes.data(), fmts[k], back.data(), frames);
         for (ULONG i = 0; i < frames * 2; i++) CHECK(std::fabs(back[i] - src[i]) <= tol[k]);
     }
-    // integer formats: exact full-scale codes, clipping, little-endian
+    // integer formats: full-scale codes, clipping, little-endian
     float edge[4] = {1.0f, -1.0f, 2.0f, -3.0f};
     UCHAR b16[8], b24[12];
     CableEncode(edge, CABLE_FMT_PCM16, b16, 2);
-    CHECK(b16[0] == 0xFF && b16[1] == 0x7F);    // +32767
-    CHECK(b16[2] == 0x01 && b16[3] == 0x80);    // -32767
+    CHECK(b16[0] == 0xFF && b16[1] == 0x7F);    // +1.0 clips to +32767
+    CHECK(b16[2] == 0x00 && b16[3] == 0x80);    // -1.0 is -32768
     CHECK(b16[4] == 0xFF && b16[5] == 0x7F);    // clipped
-    CHECK(b16[6] == 0x01 && b16[7] == 0x80);
+    CHECK(b16[6] == 0x00 && b16[7] == 0x80);
     CableEncode(edge, CABLE_FMT_PCM24, b24, 2);
     CHECK(b24[0] == 0xFF && b24[1] == 0xFF && b24[2] == 0x7F);
-    CHECK(b24[3] == 0x01 && b24[4] == 0x00 && b24[5] == 0x80);
+    CHECK(b24[3] == 0x00 && b24[4] == 0x00 && b24[5] == 0x80);
     // decoding the most negative codes
     UCHAR m16[4] = {0x00, 0x80, 0x00, 0x00};
     UCHAR m24[6] = {0x00, 0x00, 0x80, 0x00, 0x00, 0x00};
@@ -271,6 +271,100 @@ static void test_formats_round_trip() {
     CHECK(b16[0] == 0 && b16[1] == 0 && b16[2] == 0 && b16[3] == 0);
 }
 
+static void test_integer_audio_passes_unchanged() {
+    // What one half reads in an integer format, the other half writes back
+    // exactly: every 16-bit code, every 24-bit code, and 16-bit audio read
+    // out by a 24-bit half (the same values, 8 bits up).
+    const ULONG frames = 4096;
+    std::vector<float> f(frames * 2);
+    std::vector<UCHAR> in(frames * 2 * 3), out(frames * 2 * 3);
+    for (long first = -32768; first < 32768; first += (long)(frames * 2)) {
+        for (ULONG i = 0; i < frames * 2; i++) {
+            long v = first + (long)i;
+            in[2 * i] = (UCHAR)(v & 0xFF);
+            in[2 * i + 1] = (UCHAR)((v >> 8) & 0xFF);
+        }
+        CableDecode(in.data(), CABLE_FMT_PCM16, f.data(), frames);
+        CableEncode(f.data(), CABLE_FMT_PCM16, out.data(), frames);
+        CHECK(std::memcmp(in.data(), out.data(), frames * 4) == 0);
+        CableEncode(f.data(), CABLE_FMT_PCM24, out.data(), frames);
+        bool shifted = true;
+        for (ULONG i = 0; i < frames * 2; i++) {
+            long w = (long)(out[3 * i] | (out[3 * i + 1] << 8) | ((ULONG)out[3 * i + 2] << 16));
+            if (w & 0x800000) w -= 0x1000000;
+            if (w != (first + (long)i) * 256) shifted = false;
+        }
+        CHECK(shifted);
+    }
+    for (long first = -8388608; first < 8388608; first += (long)(frames * 2)) {
+        for (ULONG i = 0; i < frames * 2; i++) {
+            long v = first + (long)i;
+            in[3 * i] = (UCHAR)(v & 0xFF);
+            in[3 * i + 1] = (UCHAR)((v >> 8) & 0xFF);
+            in[3 * i + 2] = (UCHAR)((v >> 16) & 0xFF);
+        }
+        CableDecode(in.data(), CABLE_FMT_PCM24, f.data(), frames);
+        CableEncode(f.data(), CABLE_FMT_PCM24, out.data(), frames);
+        CHECK(std::memcmp(in.data(), out.data(), frames * 6) == 0);
+    }
+}
+
+// Hns * Frequency / 10^7 exactly, in 128 bits of 32-bit limbs: a reference
+// that shares no arithmetic with CableHnsToQpc. Sets *fits to whether the
+// result fits 64 bits.
+static ULONGLONG ref_hns_to_qpc(ULONGLONG hns, ULONGLONG freq, bool* fits) {
+    const uint64_t a[2] = {hns & 0xFFFFFFFFu, hns >> 32}, b[2] = {freq & 0xFFFFFFFFu, freq >> 32};
+    uint64_t p[4] = {0, 0, 0, 0};
+    for (int i = 0; i < 2; i++) {
+        uint64_t carry = 0;
+        for (int j = 0; j < 2; j++) {
+            uint64_t t = a[i] * b[j] + p[i + j] + carry;
+            p[i + j] = t & 0xFFFFFFFFu;
+            carry = t >> 32;
+        }
+        p[i + 2] += carry;
+    }
+    uint64_t q[4], rem = 0;
+    for (int k = 3; k >= 0; k--) {
+        uint64_t cur = (rem << 32) | p[k];
+        q[k] = cur / 10000000;
+        rem = cur % 10000000;
+    }
+    *fits = q[2] == 0 && q[3] == 0;
+    return (q[1] << 32) | q[0];
+}
+
+static void test_packet_times_to_performance_counter() {
+    // Capture packet times are kept in 100 ns units since boot and handed to
+    // Windows in performance counter ticks. The usual frequency is 10 MHz
+    // (then the conversion changes nothing), older PCs use 3.58 or 14.3 MHz.
+    const ULONGLONG hour = 36000000000ull;
+    const ULONGLONG freqs[] = {10000000ull, 3579545ull, 14318180ull, 24000000ull, 0xFFFFFFFFull};
+    std::vector<ULONGLONG> times = {0, 1, 9999999, 10000000, 51 * hour, 52 * hour,
+                                    1844674407370ull, 1844674407371ull, 24 * 365 * hour, 30 * 24 * 365 * hour};
+    unsigned seed = 4321;
+    for (int k = 0; k < 2000; k++) {
+        seed = seed * 1103515245u + 12345u;
+        ULONGLONG hi = seed;
+        seed = seed * 1103515245u + 12345u;
+        times.push_back(((hi << 32) | seed) >> (k % 40));
+    }
+    for (ULONGLONG f : freqs) {
+        for (ULONGLONG t : times) {
+            bool fits;
+            ULONGLONG want = ref_hns_to_qpc(t, f, &fits);
+            if (fits) CHECK(CableHnsToQpc(t, f) == want);
+        }
+    }
+    // at 10 MHz it is the identity, also long after the 51 hours where the
+    // sample's hns * frequency / 10^7 wrapped
+    for (ULONGLONG t : times) {
+        if (t <= (1ull << 62)) CHECK(CableHnsToQpc(t, 10000000ull) == t);
+    }
+    ULONGLONG t52 = 52 * hour;
+    CHECK(t52 * 10000000ull / 10000000ull != t52);
+}
+
 int main() {
     test_waits_for_margin_then_plays_in_order();
     test_jitter_within_margin_never_drops_or_repeats();
@@ -278,6 +372,8 @@ int main() {
     test_late_reader_skips_ahead();
     test_huge_write_keeps_newest();
     test_formats_round_trip();
+    test_integer_audio_passes_unchanged();
+    test_packet_times_to_performance_counter();
     if (failures) {
         std::printf("%d check(s) failed\n", failures);
         return 1;

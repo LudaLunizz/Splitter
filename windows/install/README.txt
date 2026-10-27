@@ -35,6 +35,11 @@ Install
 Double-click install.cmd and allow it to make changes. It installs the
 driver and creates the eleven cables. Running it again updates the driver.
 
+If Splitter 0.1.0 is installed, double-click uninstall.cmd first (and
+restart if it asks), then install.cmd. install.cmd checks for this.
+
+Splitter runs on x64 PCs only, not on PCs with an ARM processor.
+
 THIS IS A TEST BUILD unless this folder has no splitter-test.cer file. A
 test build is signed with a test certificate, not by Microsoft, and Windows
 only loads it in test-signing mode:

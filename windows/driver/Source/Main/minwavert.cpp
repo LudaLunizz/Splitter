@@ -1076,7 +1076,9 @@ CMiniportWaveRT::IsFormatSupported
         if (!IsEqualGUIDAligned(pFormat->DataFormat.MajorFormat, _pDataFormat->MajorFormat)) { continue; }
         if (!IsEqualGUIDAligned(pFormat->DataFormat.SubFormat, _pDataFormat->SubFormat)) { continue; }
         if (!IsEqualGUIDAligned(pFormat->DataFormat.Specifier, _pDataFormat->Specifier)) { continue; }
-        if (pFormat->DataFormat.FormatSize < sizeof(KSDATAFORMAT_WAVEFORMATEX)) { continue; }
+        // Splitter: the client's format must hold what is read from it below (the sample checked
+        // the size of its own table entry instead).
+        if (_pDataFormat->FormatSize < sizeof(KSDATAFORMAT_WAVEFORMATEX)) { continue; }
 
         // WAVEFORMATEX VALIDATION
         PWAVEFORMATEX pWaveFormat = reinterpret_cast<PWAVEFORMATEX>(_pDataFormat + 1);
@@ -1089,6 +1091,9 @@ CMiniportWaveRT::IsFormatSupported
         if (pWaveFormat->nSamplesPerSec != pFormat->WaveFormatExt.Format.nSamplesPerSec) { continue; }
         if (pWaveFormat->nBlockAlign != pFormat->WaveFormatExt.Format.nBlockAlign) { continue; }
         if (pWaveFormat->wBitsPerSample != pFormat->WaveFormatExt.Format.wBitsPerSample) { continue; }
+        // Splitter: the stream's clock runs at nAvgBytesPerSec and divides by it, so it must be the
+        // real rate: 0 would crash Windows, and a wrong value would run the cable at the wrong speed.
+        if (pWaveFormat->nAvgBytesPerSec != pFormat->WaveFormatExt.Format.nAvgBytesPerSec) { continue; }
         if (pWaveFormat->wFormatTag != WAVE_FORMAT_EXTENSIBLE)
         {
             ntStatus = STATUS_SUCCESS;
@@ -1097,6 +1102,8 @@ CMiniportWaveRT::IsFormatSupported
 
         // WAVEFORMATEXTENSIBLE VALIDATION
         if (pWaveFormat->cbSize < sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX)) { continue; }
+        // Splitter: and the extension it says follows must be in the client's format too.
+        if (_pDataFormat->FormatSize < sizeof(KSDATAFORMAT) + sizeof(WAVEFORMATEX) + pWaveFormat->cbSize) { continue; }
 
         PWAVEFORMATEXTENSIBLE pWaveFormatExt = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pWaveFormat);
         if (pWaveFormatExt->Samples.wValidBitsPerSample != pFormat->WaveFormatExt.Samples.wValidBitsPerSample) { continue; }
