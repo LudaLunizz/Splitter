@@ -1,7 +1,10 @@
 @echo off
 rem Removes the Splitter virtual cables (asks for administrator rights).
 rem It also removes the Splitter test certificates that install.cmd trusted.
-net session >nul 2>&1
+rem Administrator? fltmc only runs for one. "net session" was used before,
+rem but it also fails for an administrator when the Server service is off,
+rem and then this asked for rights again and again.
+fltmc >nul 2>&1
 if %errorlevel% neq 0 (
     rem Hand path and options over in variables, so quotes or apostrophes
     rem in them can't break the PowerShell command.
