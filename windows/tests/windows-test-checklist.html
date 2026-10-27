@@ -1,0 +1,114 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Splitter Windows Test</title>
+<!-- Source of windows-test-checklist.pdf. Render with WeasyPrint:
+     weasyprint windows-test-checklist.html windows-test-checklist.pdf -->
+<style>
+@page { size: A4; margin: 11mm 13mm; @bottom-right { content: "page " counter(page) " of " counter(pages); font-size: 7.5pt; color: #888; } }
+body { font-family: "Ubuntu", "DejaVu Sans", sans-serif; font-size: 9.2pt; color: #1d1d1f; line-height: 1.33; }
+h1 { font-size: 17pt; margin: 0 0 1pt; }
+.sub { color: #666; margin-bottom: 5pt; font-size: 8.8pt; }
+h2 { font-size: 11pt; border-bottom: 1.5px solid #d4a017; padding-bottom: 1pt; margin: 8pt 0 3pt; break-after: avoid; }
+code { font-family: "Ubuntu Mono", "DejaVu Sans Mono", monospace; background: #f2f2f2; padding: 0 2px; border-radius: 2px; font-size: 8.8pt; }
+.box { background: #fdf7e3; border: 1px solid #ecd48a; border-radius: 4px; padding: 5pt 8pt; margin: 4pt 0; }
+.warn { background: #fdecea; border: 1px solid #f0b4ad; border-radius: 4px; padding: 5pt 8pt; margin: 4pt 0; }
+table { border-collapse: collapse; width: 100%; margin: 2pt 0 4pt; }
+td, th { border: 1px solid #ddd; padding: 2.5pt 4pt; vertical-align: top; text-align: left; }
+th { background: #f4f1e6; font-size: 8.5pt; }
+tr { break-inside: avoid; }
+td.n { width: 22pt; text-align: center; color: #888; }
+td.r { width: 72pt; font-size: 8pt; color: #888; white-space: nowrap; }
+.ex { color: #555; font-size: 8.6pt; }
+p { margin: 3pt 0; }
+ul { margin: 2pt 0; padding-left: 14pt; }
+li { margin-bottom: 1pt; }
+</style></head><body>
+
+<h1>Splitter Windows Test</h1>
+<div class="sub">Test package <code>splitter-0.2.0-fixes-PR1-910df64-windows-x64.zip</code> (built by CI run 40563919244; it still says 0.2.0 inside) ·
+for pull request #1 of github.com/LudaLunizz/Splitter · about 1½ hours plus a long run</div>
+
+<div class="box">
+<b>How to fill it in:</b> for every row write <b>OK</b>, <b>FAIL</b> or <b>skipped</b> in the right column. On a FAIL, write down what you saw
+(the exact error text, or a photo of the screen) and carry on with the next row if you can. "Expect" says what should happen.
+</div>
+
+<h2>Before you start</h2>
+<table>
+<tr><td class="n">0.1</td><td>The PC runs <b>Windows 10 version 2004 or later, or Windows 11</b>, 64-bit, with an Intel or AMD processor (Settings › System › About:
+"x64-based processor"). <span class="ex">On an ARM PC, run install.cmd anyway: expect it to stop with "This PC has an ARM processor", change nothing, and end the test there.</span></td><td class="r"></td></tr>
+<tr><td class="n">0.2</td><td><b>Test mode is on.</b> Secure Boot must be off. In an administrator Command Prompt: <code>bcdedit /set testsigning on</code>, then restart.
+"Test Mode" shows at the bottom right of the desktop. <span class="ex">Undo after the test: <code>bcdedit /set testsigning off</code>, restart.</span></td><td class="r"></td></tr>
+<tr><td class="n">0.3</td><td><b>BananaSplit 2.8.6</b> is installed (github.com/LudaLunizz/BananaSplit/releases).</td><td class="r"></td></tr>
+<tr><td class="n">0.4</td><td>Write down what Splitter is installed now: <b>none</b>, the released <b>v0.2.0</b>, or <b>0.1.0</b> (in Sound settings its cables end in
+"(Splitter Virtual Cables)").</td><td class="r"></td></tr>
+</table>
+
+<h2>A. Install</h2>
+<table>
+<tr><td class="n">A1</td><td><b>If 0.1.0 is installed:</b> unzip the test package and double-click <code>install.cmd</code>. Expect: "Splitter 0.1.0 is installed … run
+uninstall.cmd" and "Nothing was changed". Then run this package's <code>uninstall.cmd</code>, restart if it asks, and go on with A2.</td><td class="r"></td></tr>
+<tr><td class="n">A2</td><td>Double-click <code>install.cmd</code> and allow it to make changes. Expect: "Installing Splitter (eleven cables)…" (or "updating its driver" if
+v0.2.0 was installed), then a list of <b>22 cables</b>, each ending in "(Splitter Cables)". <b>No red text</b>, in particular not
+"The property 'Count' cannot be found". <span class="ex">If it says a restart is needed, restart and look again.</span></td><td class="r"></td></tr>
+<tr><td class="n">A3</td><td><b>Playback</b> devices (Sound settings › More sound settings › Playback): <b>Splitter 1</b> to <b>Splitter 6</b>, and <b>Splitter A1 Input</b>,
+A2, A3, B1, B2 Input: 11 in all.</td><td class="r"></td></tr>
+<tr><td class="n">A4</td><td><b>Recording</b> devices: <b>Splitter 1 Output</b> to <b>Splitter 6 Output</b>, and <b>Splitter A1</b>, A2, A3, B1, B2: 11 in all.
+Splitter A1 to B2 show as <b>microphones</b>.</td><td class="r"></td></tr>
+<tr><td class="n">A5</td><td>Device Manager › Sound, video and game controllers: <b>one</b> "Splitter Cables", with no yellow warning sign.</td><td class="r"></td></tr>
+<tr><td class="n">A6</td><td>Run <code>install.cmd</code> <b>a second time</b>. Expect: "Splitter is installed already: updating its driver…", no red text, the same 22 cables,
+and still only one "Splitter Cables" in Device Manager.</td><td class="r"></td></tr>
+</table>
+
+<h2>B. BananaSplit</h2>
+<table>
+<tr><td class="n">B1</td><td>Start BananaSplit. The status line does <b>not</b> say "No virtual cables are installed". Menu › Virtual cables… shows Splitter with
+<b>all eleven cables</b> and none missing.</td><td class="r"></td></tr>
+<tr><td class="n">B2</td><td>In each channel's menu (strips 1–6, buses A1–B2) the cable can be switched on and off.</td><td class="r"></td></tr>
+<tr><td class="n">B3</td><td><b>Strip:</b> play music in a browser with its output set to <b>Splitter 1</b> (Windows: Settings › Sound › Volume mixer, per app). Strip 1
+in BananaSplit shows the level and you hear it clean. Repeat for <b>Splitter 6</b>.</td><td class="r"></td></tr>
+<tr><td class="n">B4</td><td><b>Bus:</b> send strip 1 to bus B1. In Windows' Sound Recorder (or Discord) choose the microphone <b>Splitter B1</b> and record 10 seconds.
+The recording plays back clean.</td><td class="r"></td></tr>
+</table>
+
+<h2>C. Sound quality</h2>
+<table>
+<tr><td class="n">C1</td><td><b>Formats.</b> For <b>Splitter 1</b> (playback) and <b>Splitter 1 Output</b> (recording), Properties › Advanced: try <b>16 bit</b>,
+<b>24 bit</b> and <b>32 bit</b>, 48000 Hz, each with B3 again. Each must sound clean: no crackle, no wrong speed or pitch, no silence.</td><td class="r"></td></tr>
+<tr><td class="n">C2</td><td><b>Exclusive mode</b> (in the device's Properties › Advanced, "Allow applications to take exclusive control" is on): play into
+Splitter 1 from a player in <b>WASAPI exclusive</b> mode, e.g. foobar2000 with output "WASAPI (exclusive)". Clean sound in BananaSplit?
+<span class="ex">This is the case the timing fix is for: before it, sound came out garbled.</span></td><td class="r"></td></tr>
+<tr><td class="n">C3</td><td><b>Another recording app:</b> record <b>Splitter 1 Output</b> in Audacity (host "Windows WASAPI") while music plays into Splitter 1,
+for one minute. Smooth, no gaps or bursts?</td><td class="r"></td></tr>
+<tr><td class="n">C4</td><td><b>Delay:</b> click along with a video playing into Splitter 1 while you listen through BananaSplit. Write down if the delay
+feels larger than a TV that's slightly out of sync (it should be about 30 ms).</td><td class="r"></td></tr>
+<tr><td class="n">C5</td><td><b>Long run:</b> leave music playing through Splitter 1 into BananaSplit for <b>at least 1 hour</b> (overnight is better). Afterwards:
+still clean, no crackle, and the sound hasn't drifted out of sync.</td><td class="r"></td></tr>
+</table>
+
+<h2>D. Remove</h2>
+<table>
+<tr><td class="n">D1</td><td>Double-click <code>uninstall.cmd</code>. Expect "Splitter is removed." (or "… Restart Windows to finish"; then restart). The Splitter
+cables are gone from Sound settings and Device Manager.</td><td class="r"></td></tr>
+<tr><td class="n">D2</td><td>Run <code>install.cmd</code> again, then go over A3, A4 and B1 once more. All 22 cables are back.</td><td class="r"></td></tr>
+<tr><td class="n">D3</td><td>BananaSplit's other cards and audio devices (speakers, headset, any VB-Audio cables) still work.</td><td class="r"></td></tr>
+</table>
+
+<h2>E. Optional: Driver Verifier</h2>
+<div class="warn"><b>Only if you are comfortable fixing a PC that blue-screens at startup.</b> Driver Verifier makes Windows stop with a blue screen as
+soon as the driver does something wrong, which is the point. If Windows won't start any more: boot into Safe Mode (hold Shift while
+clicking Restart › Troubleshoot › Advanced › Startup Settings) and run <code>verifier /reset</code>.</div>
+<table>
+<tr><td class="n">E1</td><td>In an administrator Command Prompt: <code>verifier /standard /driver splitter.sys</code>, restart.</td><td class="r"></td></tr>
+<tr><td class="n">E2</td><td>Repeat A6, B3, B4, C1 and C2, then stop and start playback a few times. No blue screen?</td><td class="r"></td></tr>
+<tr><td class="n">E3</td><td>Turn it off: <code>verifier /reset</code>, restart.</td><td class="r"></td></tr>
+</table>
+
+<h2>What to send back</h2>
+<ul>
+<li>This sheet with the results column filled in, and your Windows version (Settings › System › About: edition, version, OS build).</li>
+<li>Photos or screenshots of the <code>install.cmd</code> window (A2, A6) and of any error.</li>
+<li>If installing fails: <code>C:\Windows\INF\setupapi.dev.log</code>.</li>
+<li>After a blue screen: the newest file in <code>C:\Windows\Minidump</code>, and the text on the blue screen (the "Stop code" and the file named).</li>
+</ul>
+
+</body></html>
