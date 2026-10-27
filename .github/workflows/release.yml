@@ -23,10 +23,19 @@ jobs:
   windows:
     name: Splitter for Windows
     runs-on: windows-2025-vs2026
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
+
+      # The commit that was built, for the name of the release files:
+      # release.sh takes only files built from the commit the tag points to.
+      - name: Built commit
+        id: commit
+        shell: pwsh
+        run: '"sha=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT'
 
       - name: Check tag matches VERSION
         shell: pwsh
@@ -75,6 +84,6 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: splitter-${{ env.TAG }}
+          name: splitter-${{ env.TAG }}-${{ needs.windows.outputs.commit }}
           path: dist/*
           if-no-files-found: error
