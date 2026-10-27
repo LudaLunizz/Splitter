@@ -33,6 +33,36 @@ Return Value:
 --*/
 {
     PAGED_CODE();
+
+    // Splitter: the timer first. Its callback (TimerNotifyRT) uses the
+    // miniport, the format and the notification list, which are released
+    // below; the sample deleted the timer only after freeing them.
+    if (m_pNotificationTimer)
+    {
+        ExDeleteTimer
+        (
+            m_pNotificationTimer, 
+            TRUE, // Cancel the timer if it is currently set.
+            TRUE, // Wait for the timer to finish expiring and for any callback to a ExTimerCallback routine to finish.
+            NULL
+         );
+        m_pNotificationTimer = NULL;
+    }
+
+    // Since we just cancelled the notification timer, wait for all queued 
+    // DPCs to complete before we free the notification DPC.
+    //
+    KeFlushQueuedDpcs();
+
+    // Splitter: and the notification events the client did not unregister
+    // (the sample leaked their entries). Flink is NULL only if Init never
+    // got as far as setting the list up.
+    while (m_NotificationList.Flink != NULL && !IsListEmpty(&m_NotificationList))
+    {
+        PLIST_ENTRY le = RemoveHeadList(&m_NotificationList);
+        ExFreePoolWithTag(CONTAINING_RECORD(le, NotificationListEntry, ListEntry), MINWAVERTSTREAM_POOLTAG);
+    }
+
     if (NULL != m_pMiniport)
     {
     
@@ -81,21 +111,6 @@ Return Value:
         ExFreePoolWithTag( m_pWfExt, MINWAVERTSTREAM_POOLTAG );
         m_pWfExt = NULL;
     }
-    if (m_pNotificationTimer)
-    {
-        ExDeleteTimer
-        (
-            m_pNotificationTimer, 
-            TRUE, // Cancel the timer if it is currently set.
-            TRUE, // Wait for the timer to finish expiring and for any callback to a ExTimerCallback routine to finish.
-            NULL
-         );
-    }
-
-    // Since we just cancelled the notification timer, wait for all queued 
-    // DPCs to complete before we free the notification DPC.
-    //
-    KeFlushQueuedDpcs();
 
     DPF_ENTER(("[CMiniportWaveRTStream::~CMiniportWaveRTStream]"));
 } // ~CMiniportWaveRTStream
@@ -385,12 +400,16 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
         return STATUS_UNSUCCESSFUL; 
     }
     
-    if ((NotificationCount_ == 0) || (RequestedSize_ % NotificationCount_ != 0))
+    // Splitter: every packet a whole number of frames, and the packets
+    // exactly filling the buffer. The sample checked the second before
+    // rounding the size down to whole frames, which could undo it: then
+    // packets ran across the buffer's end, and GetReadPacket and
+    // SetWritePacket pointed the client at the wrong bytes after one lap.
+    if ((NotificationCount_ == 0) ||
+        (RequestedSize_ % ((ULONGLONG)NotificationCount_ * m_pWfExt->Format.nBlockAlign) != 0))
     {
         return STATUS_INVALID_PARAMETER;
     }
-
-    RequestedSize_ -= RequestedSize_ % (m_pWfExt->Format.nBlockAlign);
 
     // Splitter: the stream moves on a 1 ms timer (TimerNotifyRT), so it
     // can't complete packets shorter than that.
@@ -426,6 +445,13 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
     //  A WaveRT miniport driver should not require software access to the audio buffer itself."
     //   
     m_pDmaBuffer = (BYTE*)m_pPortStream->MapAllocatedPages(pBufferMdl, MmCached);
+    // Splitter: without the mapping the cable can't reach the audio. The
+    // sample reported success anyway, and the stream ran in silence.
+    if (m_pDmaBuffer == NULL)
+    {
+        m_pPortStream->FreePagesFromMdl(pBufferMdl);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
     m_ulNotificationsPerBuffer = NotificationCount_;
     m_ulDmaBufferSize = RequestedSize_;
 
@@ -467,15 +493,17 @@ VOID CMiniportWaveRTStream::FreeBufferWithNotification
 }
 
 //=============================================================================
-#pragma code_seg("PAGE")
+// Splitter: not paged, and the list only under m_PositionSpinLock: the 1 ms
+// timer (TimerNotifyRT) walks it at DISPATCH_LEVEL while the stream runs,
+// and the sample changed it without the lock, so an unregister could free
+// an entry the timer was about to set.
+#pragma code_seg()
 NTSTATUS CMiniportWaveRTStream::RegisterNotificationEvent
 (
     _In_ PKEVENT NotificationEvent_
 )
 {
-    UNREFERENCED_PARAMETER(NotificationEvent_);
-
-    PAGED_CODE();
+    KIRQL oldIrql;
 
     NotificationListEntry *nleNew = (NotificationListEntry*)ExAllocatePool2( 
         POOL_FLAG_NON_PAGED,
@@ -488,6 +516,8 @@ NTSTATUS CMiniportWaveRTStream::RegisterNotificationEvent
 
     nleNew->NotificationEvent = NotificationEvent_;
 
+    KeAcquireSpinLock(&m_PositionSpinLock, &oldIrql);
+
     // Fail if the notification event already exists in our list.
     if (!IsListEmpty(&m_NotificationList))
     {
@@ -497,6 +527,7 @@ NTSTATUS CMiniportWaveRTStream::RegisterNotificationEvent
             NotificationListEntry* nleCurrent = CONTAINING_RECORD( leCurrent, NotificationListEntry, ListEntry);
             if (nleCurrent->NotificationEvent == NotificationEvent_)
             {
+                KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
                 ExFreePoolWithTag( nleNew, MINWAVERTSTREAM_POOLTAG );
                 return STATUS_UNSUCCESSFUL;
             }
@@ -506,20 +537,23 @@ NTSTATUS CMiniportWaveRTStream::RegisterNotificationEvent
     }
 
     InsertTailList(&m_NotificationList, &(nleNew->ListEntry));
+
+    KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
     
     return STATUS_SUCCESS;
 }
 
 //=============================================================================
-#pragma code_seg("PAGE")
+#pragma code_seg()
 NTSTATUS CMiniportWaveRTStream::UnregisterNotificationEvent
 (
     _In_ PKEVENT NotificationEvent_
 )
 {
-    UNREFERENCED_PARAMETER(NotificationEvent_);
+    KIRQL oldIrql;
+    NotificationListEntry* nleFound = NULL;
 
-    PAGED_CODE();
+    KeAcquireSpinLock(&m_PositionSpinLock, &oldIrql);
 
     if (!IsListEmpty(&m_NotificationList))
     {
@@ -530,15 +564,22 @@ NTSTATUS CMiniportWaveRTStream::UnregisterNotificationEvent
             if (nleCurrent->NotificationEvent == NotificationEvent_)
             {
                 RemoveEntryList( leCurrent );
-                ExFreePoolWithTag( nleCurrent, MINWAVERTSTREAM_POOLTAG );
-                return STATUS_SUCCESS;
+                nleFound = nleCurrent;
+                break;
             }
 
             leCurrent = leCurrent->Flink;
         }
     }
 
-    return STATUS_NOT_FOUND;
+    KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
+
+    if (nleFound == NULL)
+    {
+        return STATUS_NOT_FOUND;
+    }
+    ExFreePoolWithTag( nleFound, MINWAVERTSTREAM_POOLTAG );
+    return STATUS_SUCCESS;
 }
 
 
@@ -660,6 +701,12 @@ _Out_   MEMORY_CACHING_TYPE    *CacheType_
     //  A WaveRT miniport driver should not require software access to the audio buffer itself."
     //   
     m_pDmaBuffer = (BYTE*)m_pPortStream->MapAllocatedPages(pBufferMdl, MmCached);
+    // Splitter: as in AllocateBufferWithNotification.
+    if (m_pDmaBuffer == NULL)
+    {
+        m_pPortStream->FreePagesFromMdl(pBufferMdl);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     m_ulDmaBufferSize = RequestedSize_;
     m_ulNotificationsPerBuffer = 0;
