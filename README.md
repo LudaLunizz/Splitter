@@ -217,7 +217,10 @@ Version 0.2.0 has not been run on a real PC yet. What has been checked:
   with no new warnings;
 - `tests/inf_check.py` checks that the INF, the endpoint GUIDs and the
   filter tables agree for all eleven cables;
-- `tests/cablerule_test.cpp` passes.
+- `tests/cablerule_test.cpp` passes;
+- `tests/install_scripts_test.ps1` runs `install.ps1` and `uninstall.ps1`
+  under pwsh 7 with stand-ins for the Windows parts (20 cases). It can't
+  show what differs in Windows PowerShell 5.1, which `install.cmd` starts.
 
 Still to check on a real PC in test mode:
 
