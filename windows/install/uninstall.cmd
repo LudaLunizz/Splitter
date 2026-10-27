@@ -1,6 +1,6 @@
 @echo off
 rem Removes the Splitter virtual cables (asks for administrator rights).
-rem Add -RemoveCertificate to also remove the test certificate.
+rem It also removes the Splitter test certificates that install.cmd trusted.
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     rem Hand path and options over in variables, so quotes or apostrophes
