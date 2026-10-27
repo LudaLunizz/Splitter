@@ -385,6 +385,10 @@ Return Value:
     CAdapterCommon *p = new(PoolFlags, MINADAPTER_POOLTAG) CAdapterCommon(UnknownOuter);
     if (p == NULL)
     {
+        // Splitter: give the one instance back (the destructor does it for
+        // an object that exists). The sample kept it, and then no Splitter
+        // device could start again until the driver was reloaded.
+        InterlockedExchange(&CAdapterCommon::m_AdapterInstances, 0);
         ntStatus = STATUS_INSUFFICIENT_RESOURCES;
         DPF(D_ERROR, ("NewAdapterCommon failed, 0x%x", ntStatus));
         goto Done;
