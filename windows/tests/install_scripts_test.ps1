@@ -34,7 +34,7 @@ if ($RunScript) {
     # --- one case: stand-ins, then the script -----------------------------
     $d = @{ build = 22631; is64 = $true; arch = 'AMD64'; start = ' NOEXECUTE=OPTIN TESTSIGNING'; cer = $true;
             before = @(); after = @(); endpoints = @(); packages = @(); reboot = $false;
-            noPnpModule = $false; pnputilExit = 0; certs = @() }
+            noPnpModule = $false; pnputilExit = 0; certs = @(); installFails = $false; trusted = @() }
     $j = $env:SPLITTER_CASE | ConvertFrom-Json -AsHashtable
     foreach ($k in $j.Keys) { $d[$k] = $j[$k] }
     function Dev($x) {
@@ -50,11 +50,19 @@ if ($RunScript) {
 public static class SplitterSetup {
     public static bool Done = false;
     public static bool Reboot = false;
-    public static bool CreateAndInstall(string h, string i) { Done = true; System.Console.WriteLine("CALL CreateAndInstall"); return Reboot; }
-    public static bool Update(string h, string i) { Done = true; System.Console.WriteLine("CALL Update"); return Reboot; }
+    public static bool Fails = false;
+    static bool Run(string what) {
+        System.Console.WriteLine("CALL " + what);
+        if (Fails) throw new System.ComponentModel.Win32Exception(5);
+        Done = true;
+        return Reboot;
+    }
+    public static bool CreateAndInstall(string h, string i) { return Run("CreateAndInstall"); }
+    public static bool Update(string h, string i) { return Run("Update"); }
 }
 '@
     [SplitterSetup]::Reboot = [bool]$d.reboot
+    [SplitterSetup]::Fails = [bool]$d.installFails
 
     # Functions come before cmdlets and programs of the same name.
     function global:Add-Type { }
@@ -90,6 +98,17 @@ public static class SplitterSetup {
         [pscustomobject]@{ Data = $x.ver }
     }
     function global:Import-Certificate { param($FilePath, $CertStoreLocation) Write-Host "CALL trust $CertStoreLocation" }
+    # The package's test certificate is AA11; the case lists the stores
+    # that trust it already.
+    function global:Get-PfxCertificate { param($FilePath) [pscustomobject]@{ Thumbprint = 'AA11' } }
+    function global:Test-Path {
+        param([Parameter(Position = 0)] $Path)
+        if ("$Path" -like 'Cert:*') {
+            foreach ($s in @($global:sc.trusted)) { if ("$Path" -eq "Cert:\LocalMachine\$s\AA11") { return $true } }
+            return $false
+        }
+        Microsoft.PowerShell.Management\Test-Path -Path $Path
+    }
     function global:Get-WindowsDriver {
         param([switch] $Online, [switch] $All)
         foreach ($p in $global:sc.packages) { [pscustomobject]@{ Driver = $p.oem; OriginalFileName = $p.file; ProviderName = $p.provider } }
@@ -173,6 +192,10 @@ $cases = @(
        want = @('There are 2 Splitter devices', 'run uninstall.cmd', 'Nothing was changed'); not = @('CALL') }
     @{ name = 'update one 0.2.0 device, restart'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 38 }) }; exit = 0
        want = @('updating its driver', 'CALL Update', 'appear after the restart', 'asks for a restart'); not = @('CreateAndInstall') }
+    @{ name = 'install fails: the test certificate is taken back'; script = $install; case = @{ installFails = $true }; exit = 1
+       want = @('CALL trust Cert:\LocalMachine\Root', 'Installing the driver failed', 'CALL remove Cert:\LocalMachine\Root\AA11', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11', 'no longer trusted') }
+    @{ name = 'install fails: a certificate trusted before stays'; script = $install; case = @{ installFails = $true; trusted = @('Root') }; exit = 1
+       want = @('Installing the driver failed', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11'); not = @('CALL remove Cert:\LocalMachine\Root') }
     @{ name = 'driver not started (code 52)'; script = $install; case = @{ after = @(@{ code = 52 }) }; exit = 1
        want = @('problem code 52', 'Code 52:') }
     @{ name = 'Microsoft-signed package, test mode off'; script = $install; case = @{ cer = $false; start = ' NOEXECUTE=OPTIN'; after = @(@{}) }; exit = 0
