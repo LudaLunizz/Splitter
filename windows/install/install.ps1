@@ -280,6 +280,16 @@ Start-Sleep -Seconds 2
 $dev = Get-SplitterDevices | Select-Object -First 1
 $problem = 0
 if ($dev) { $problem = $dev.ConfigManagerErrorCode }
+# Code 22: someone disabled the device (to turn the cables off, say). The
+# driver is installed all the same; a restart wouldn't change that, and it
+# isn't a failure. The device stays as it was left.
+if ($problem -eq 22) {
+    Write-Host ''
+    Write-Host 'Splitter is installed, but its device is disabled, so there are no cables.' -ForegroundColor Yellow
+    Write-Host 'To turn the cables on: Device Manager > Sound, video and game controllers > Splitter Cables > Enable device,'
+    Write-Host "or, as administrator: pnputil /enable-device ""$($dev.PNPDeviceID)"""
+    exit 0
+}
 if ($problem -eq 14 -or ($problem -ne 0 -and $reboot)) {
     $reboot = $true
 } elseif ($problem -ne 0) {
