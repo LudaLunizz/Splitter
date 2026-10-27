@@ -48,6 +48,10 @@ DRIVER_DISPATCH PnpHandler;
 // The cables' rings are shared by the render and capture miniports of the
 // same number (cablering.h).
 C_ASSERT(SPLITTER_CABLE_COUNT == CABLE_RING_COUNT);
+//
+// The rings are global, one per cable for the whole driver, so only one
+// Splitter device may run: NewAdapterCommon (common.cpp) refuses a second
+// adapter object, and a second device fails to start (code 10).
 UNICODE_STRING g_RegistryPath;      // This is used to store the registry settings path for the driver
 
 //-----------------------------------------------------------------------------
@@ -164,7 +168,10 @@ NTSTATUS - SUCCESS if able to configure the framework
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlAppendUnicodeToString(&g_RegistryPath, RegistryPath->Buffer);
+    // Splitter: a UNICODE_STRING's Buffer needn't end in a NUL, and
+    // RtlAppendUnicodeToString (the sample's call) reads up to one, so it
+    // could read past the string. Copy exactly Length bytes instead.
+    RtlCopyUnicodeString(&g_RegistryPath, RegistryPath);
 
     return STATUS_SUCCESS;
 }
@@ -384,6 +391,7 @@ InstallEndpointRenderFilters(
     )
 {
     NTSTATUS                    ntStatus                = STATUS_SUCCESS;
+    NTSTATUS                    ntStatusInstall         = STATUS_SUCCESS;
     PUNKNOWN                    unknownTopology         = NULL;
     PUNKNOWN                    unknownWave             = NULL;
     PPORTCLSETWHELPER           pPortClsEtwHelper       = NULL;
@@ -404,6 +412,13 @@ InstallEndpointRenderFilters(
         &unknownTopology,
         &unknownWave,
         NULL, NULL);
+
+    // Splitter: what the endpoint's installation returned is the result.
+    // The sample returned the status of the last optional call below
+    // instead (a QueryInterface for IPortClsStreamResourceManager2, say), so
+    // an interface Windows doesn't offer failed the whole device start, and
+    // a failed installation could be reported as success.
+    ntStatusInstall = ntStatus;
 
     if (unknownWave) // IID_IPortClsEtwHelper and IID_IPortClsRuntimePower interfaces are only exposed on the WaveRT port.
     {
@@ -510,7 +525,7 @@ InstallEndpointRenderFilters(
     SAFE_RELEASE(unknownTopology);
     SAFE_RELEASE(unknownWave);
 
-    return ntStatus;
+    return ntStatusInstall;
 }
 
 #pragma code_seg("PAGE")

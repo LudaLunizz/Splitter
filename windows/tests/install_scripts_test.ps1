@@ -34,7 +34,7 @@ if ($RunScript) {
     # --- one case: stand-ins, then the script -----------------------------
     $d = @{ build = 22631; is64 = $true; arch = 'AMD64'; start = ' NOEXECUTE=OPTIN TESTSIGNING'; cer = $true;
             before = @(); after = @(); endpoints = @(); packages = @(); reboot = $false;
-            noPnpModule = $false; pnputilExit = 0 }
+            noPnpModule = $false; pnputilExit = 0; certs = @(); installFails = $false; trusted = @() }
     $j = $env:SPLITTER_CASE | ConvertFrom-Json -AsHashtable
     foreach ($k in $j.Keys) { $d[$k] = $j[$k] }
     function Dev($x) {
@@ -50,11 +50,19 @@ if ($RunScript) {
 public static class SplitterSetup {
     public static bool Done = false;
     public static bool Reboot = false;
-    public static bool CreateAndInstall(string h, string i) { Done = true; System.Console.WriteLine("CALL CreateAndInstall"); return Reboot; }
-    public static bool Update(string h, string i) { Done = true; System.Console.WriteLine("CALL Update"); return Reboot; }
+    public static bool Fails = false;
+    static bool Run(string what) {
+        System.Console.WriteLine("CALL " + what);
+        if (Fails) throw new System.ComponentModel.Win32Exception(5);
+        Done = true;
+        return Reboot;
+    }
+    public static bool CreateAndInstall(string h, string i) { return Run("CreateAndInstall"); }
+    public static bool Update(string h, string i) { return Run("Update"); }
 }
 '@
     [SplitterSetup]::Reboot = [bool]$d.reboot
+    [SplitterSetup]::Fails = [bool]$d.installFails
 
     # Functions come before cmdlets and programs of the same name.
     function global:Add-Type { }
@@ -90,12 +98,37 @@ public static class SplitterSetup {
         [pscustomobject]@{ Data = $x.ver }
     }
     function global:Import-Certificate { param($FilePath, $CertStoreLocation) Write-Host "CALL trust $CertStoreLocation" }
+    # The package's test certificate is AA11; the case lists the stores
+    # that trust it already.
+    function global:Get-PfxCertificate { param($FilePath) [pscustomobject]@{ Thumbprint = 'AA11' } }
+    function global:Test-Path {
+        param([Parameter(Position = 0)] $Path)
+        if ("$Path" -like 'Cert:*') {
+            foreach ($s in @($global:sc.trusted)) { if ("$Path" -eq "Cert:\LocalMachine\$s\AA11") { return $true } }
+            return $false
+        }
+        Microsoft.PowerShell.Management\Test-Path -Path $Path
+    }
     function global:Get-WindowsDriver {
         param([switch] $Online, [switch] $All)
         foreach ($p in $global:sc.packages) { [pscustomobject]@{ Driver = $p.oem; OriginalFileName = $p.file; ProviderName = $p.provider } }
     }
     function global:pnputil { Write-Host "CALL pnputil $($args -join ' ')"; $global:LASTEXITCODE = [int]$global:sc.pnputilExit }
-    function global:Get-ChildItem { param($Path) }
+    # The stores' test certificates: Get-ChildItem Cert:\... lists them,
+    # Remove-Item on one reports it. Everything else is the real command.
+    function global:Get-ChildItem {
+        param($Path)
+        foreach ($c in @($global:sc.certs)) {
+            if ($c -and $Path -like "*\$($c.store)") {
+                [pscustomobject]@{ Subject = $c.subject; Thumbprint = $c.tp; PSPath = "Cert:\LocalMachine\$($c.store)\$($c.tp)" }
+            }
+        }
+    }
+    function global:Remove-Item {
+        param([Parameter(Position = 0)] $Path, [switch] $Recurse, [switch] $Force)
+        if ("$Path" -like 'Cert:*') { Write-Host "CALL remove $Path"; return }
+        Microsoft.PowerShell.Management\Remove-Item -Path $Path -Recurse:$Recurse -Force:$Force
+    }
 
     # A package folder of its own: the script, driver\splitter.inf, and the
     # test certificate if the case has one.
@@ -121,6 +154,13 @@ $uninstall = Join-Path $PSScriptRoot '../install/uninstall.ps1'
 $ours = @{ oem = 'oem12.inf'; file = 'C:/Windows/System32/DriverStore/FileRepository/splitter.inf_amd64_1/splitter.inf'; provider = 'BananaSplit' }
 $theirs = @{ oem = 'oem7.inf'; file = 'C:/Windows/System32/DriverStore/FileRepository/splitter.inf_amd64_2/Splitter.INF'; provider = 'Contoso Audio' }
 $other = @{ oem = 'oem3.inf'; file = 'C:/Windows/System32/DriverStore/FileRepository/realtek.inf_amd64_3/realtek.inf'; provider = 'Realtek' }
+$test = 'CN=Splitter test signing (BananaSplit)'
+$certs = @(
+    @{ store = 'Root'; subject = $test; tp = 'AA11' }
+    @{ store = 'TrustedPublisher'; subject = $test; tp = 'AA11' }
+    @{ store = 'Root'; subject = $test; tp = 'BB22' }    # an older build's
+    @{ store = 'Root'; subject = 'CN=Contoso Root'; tp = 'CC33' }
+)
 $cables = @('Splitter 1 (Splitter Cables)', 'Splitter B1 (Splitter Cables)')
 
 $cases = @(
@@ -148,8 +188,16 @@ $cases = @(
        want = @('Splitter 0.1.0 is installed'); not = @('CALL') }
     @{ name = 'second Splitter device with new names is not 0.1.0'; script = $install; case = @{ after = @(@{}); endpoints = @('Splitter 1 (2- Splitter Cables)') }; exit = 0
        want = @('CALL CreateAndInstall', 'Splitter 1 (2- Splitter Cables)'); not = @('0.1.0') }
+    @{ name = 'two Splitter devices'; script = $install; case = @{ before = @(@{}, @{ id = 'ROOT\MEDIA\0001' }) }; exit = 1
+       want = @('There are 2 Splitter devices', 'run uninstall.cmd', 'Nothing was changed'); not = @('CALL') }
     @{ name = 'update one 0.2.0 device, restart'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 38 }) }; exit = 0
        want = @('updating its driver', 'CALL Update', 'appear after the restart', 'asks for a restart'); not = @('CreateAndInstall') }
+    @{ name = 'install fails: the test certificate is taken back'; script = $install; case = @{ installFails = $true }; exit = 1
+       want = @('CALL trust Cert:\LocalMachine\Root', 'Installing the driver failed', 'CALL remove Cert:\LocalMachine\Root\AA11', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11', 'no longer trusted') }
+    @{ name = 'install fails: a certificate trusted before stays'; script = $install; case = @{ installFails = $true; trusted = @('Root') }; exit = 1
+       want = @('Installing the driver failed', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11'); not = @('CALL remove Cert:\LocalMachine\Root') }
+    @{ name = 'update a disabled device (code 22)'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 22 }) }; exit = 0
+       want = @('CALL Update', 'its device is disabled', 'pnputil /enable-device "ROOT\MEDIA\0000"'); not = @('did not start it', 'restart') }
     @{ name = 'driver not started (code 52)'; script = $install; case = @{ after = @(@{ code = 52 }) }; exit = 1
        want = @('problem code 52', 'Code 52:') }
     @{ name = 'Microsoft-signed package, test mode off'; script = $install; case = @{ cer = $false; start = ' NOEXECUTE=OPTIN'; after = @(@{}) }; exit = 0
@@ -159,6 +207,11 @@ $cases = @(
        want = @('CALL pnputil /remove-device ROOT\MEDIA\0000', 'CALL pnputil /delete-driver oem12.inf /uninstall /force', 'Splitter is removed.'); not = @('oem7.inf', 'oem3.inf') }
     @{ name = 'uninstall: only another company''s splitter.inf'; script = $uninstall; case = @{ packages = @($theirs) }; exit = 0
        want = @('Splitter was not installed.'); not = @('CALL') }
+    @{ name = 'uninstall: test certificates go too, others stay'; script = $uninstall; case = @{ before = @(@{}); packages = @($ours); certs = $certs }; exit = 0
+       want = @('CALL remove Cert:\LocalMachine\Root\AA11', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11', 'CALL remove Cert:\LocalMachine\Root\BB22', 'Splitter is removed.')
+       not = @('CC33') }
+    @{ name = 'uninstall: only a test certificate left'; script = $uninstall; case = @{ certs = @($certs[0]) }; exit = 0
+       want = @('CALL remove Cert:\LocalMachine\Root\AA11', 'Splitter is removed.'); not = @('not installed') }
     @{ name = 'uninstall: restart needed (3010)'; script = $uninstall; case = @{ before = @(@{}); packages = @($ours); pnputilExit = 3010 }; exit = 0
        want = @('Restart Windows to finish.') }
     @{ name = 'uninstall: pnputil fails'; script = $uninstall; case = @{ before = @(@{}); packages = @($ours); pnputilExit = 5 }; exit = 1

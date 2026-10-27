@@ -238,6 +238,14 @@ Arguments:
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // Splitter: the client's range has to be a whole KSDATARANGE_AUDIO
+    // before its channel count is read. The client says how long it is, and
+    // the sample read the field regardless, past the end of a shorter one.
+    if (ClientDataRange->FormatSize < sizeof(KSDATARANGE_AUDIO))
+    {
+        return STATUS_NO_MATCH;
+    }
+
     // Verify channel count is supported. This routine assumes a separate data
     // range for each supported channel count.
     if (((PKSDATARANGE_AUDIO)MyDataRange)->MaximumChannels != ((PKSDATARANGE_AUDIO)ClientDataRange)->MaximumChannels)
@@ -804,6 +812,12 @@ ULONG CMiniportWaveRT::GetPinSupportedDeviceModes(_In_ ULONG PinId, _Outptr_opt_
 #pragma code_seg()
 BOOL CMiniportWaveRT::IsSystemCapturePin(ULONG nPinId)
 {
+    // Splitter: no pin of this filter has a number past the table.
+    if (nPinId >= m_DeviceFormatsAndModesCount)
+    {
+        return FALSE;
+    }
+
     AcquireFormatsAndModesLock();
 
     PINTYPE pinType = m_DeviceFormatsAndModes[nPinId].PinType;
@@ -815,6 +829,12 @@ BOOL CMiniportWaveRT::IsSystemCapturePin(ULONG nPinId)
 #pragma code_seg()
 BOOL CMiniportWaveRT::IsSystemRenderPin(ULONG nPinId)
 {
+    // Splitter: no pin of this filter has a number past the table.
+    if (nPinId >= m_DeviceFormatsAndModesCount)
+    {
+        return FALSE;
+    }
+
     AcquireFormatsAndModesLock();
 
     PINTYPE pinType = m_DeviceFormatsAndModes[nPinId].PinType;
@@ -826,6 +846,12 @@ BOOL CMiniportWaveRT::IsSystemRenderPin(ULONG nPinId)
 #pragma code_seg()
 BOOL CMiniportWaveRT::IsBridgePin(ULONG nPinId)
 {
+    // Splitter: no pin of this filter has a number past the table.
+    if (nPinId >= m_DeviceFormatsAndModesCount)
+    {
+        return FALSE;
+    }
+
     AcquireFormatsAndModesLock();
 
     PINTYPE pinType = m_DeviceFormatsAndModes[nPinId].PinType;
@@ -1144,6 +1170,14 @@ CMiniportWaveRT::PropertyHandlerProposedFormat
 
     // Extract property descriptor from property request instance data
     kspPin = CONTAINING_RECORD(PropertyRequest->Instance, KSP_PIN, PinId);
+
+    // Splitter: the pin id comes from the client, and the checks below
+    // index the pin table with it (PropertyHandlerProposedFormat2 checked
+    // it; this handler didn't).
+    if (kspPin->PinId >= m_pMiniportPair->WaveDescriptor->PinCount)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
 
     //
     // This method is valid only on streaming pins.

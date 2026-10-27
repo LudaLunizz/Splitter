@@ -393,6 +393,10 @@ Return Value:
                         pMI->Count = 1;
 
                         RtlCopyMemory(pDesc, JackDescriptions[nPinId], sizeof(KSJACK_DESCRIPTION));
+                        // Splitter: the bytes written. The sample left the
+                        // caller's buffer size here, so the rest of the buffer
+                        // (memory nothing wrote) went back to the caller.
+                        PropertyRequest->ValueSize = cbNeeded;
                         ntStatus = STATUS_SUCCESS;
                     }
                 }
@@ -506,6 +510,8 @@ Return Value:
                         //
                         pDesc->JackCapabilities = JackCapabilities;
 
+                        // Splitter: the bytes written, as above.
+                        PropertyRequest->ValueSize = cbNeeded;
                         ntStatus = STATUS_SUCCESS;
                     }
                 }

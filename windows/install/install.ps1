@@ -114,7 +114,21 @@ if ($old) {
     ) -join [Environment]::NewLine)
 }
 
+# The driver gives its cables to one device only (a second one would share
+# them); any other fails to start with code 10. So more than one is a
+# mistake, made by hand: start again with one.
+if ($existing.Count -gt 1) {
+    Fail (@(
+        "There are $($existing.Count) Splitter devices on this PC; Splitter works with one:",
+        '  1. run uninstall.cmd from this folder (it removes all of them);',
+        '  2. restart the PC if it asks for that;',
+        '  3. run install.cmd again, which creates one.',
+        'Nothing was changed.'
+    ) -join [Environment]::NewLine)
+}
+
 $cer = Join-Path $here 'splitter-test.cer'
+$certAdded = @()    # the stores this run added the test certificate to
 if (Test-Path $cer) {
     # A test build: Windows loads it only in test-signing mode.
     # The options this boot started with (the same in every language,
@@ -136,7 +150,9 @@ if (Test-Path $cer) {
         ) -join [Environment]::NewLine)
     }
     Write-Host 'Trusting the Splitter test certificate on this PC...'
+    $certThumbprint = (Get-PfxCertificate -FilePath $cer).Thumbprint
     foreach ($store in 'Root', 'TrustedPublisher') {
+        if (-not (Test-Path "Cert:\LocalMachine\$store\$certThumbprint")) { $certAdded += $store }
         Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\$store" | Out-Null
     }
 }
@@ -243,7 +259,15 @@ try {
         $reboot = [SplitterSetup]::CreateAndInstall($hwid, $inf)
     }
 } catch {
-    Fail ("Installing the driver failed: " + $_.Exception.Message +
+    $why = $_.Exception.Message
+    # Nothing was installed, so the PC shouldn't go on trusting the test
+    # certificate either: take back what this run added (a certificate that
+    # was trusted before stays).
+    foreach ($store in $certAdded) {
+        try { Remove-Item "Cert:\LocalMachine\$store\$certThumbprint" } catch { }
+    }
+    if ($certAdded) { Write-Host 'The test certificate is no longer trusted on this PC (nothing was installed).' }
+    Fail ("Installing the driver failed: " + $why +
         [Environment]::NewLine + 'Details: C:\Windows\INF\setupapi.dev.log')
 }
 
@@ -256,6 +280,16 @@ Start-Sleep -Seconds 2
 $dev = Get-SplitterDevices | Select-Object -First 1
 $problem = 0
 if ($dev) { $problem = $dev.ConfigManagerErrorCode }
+# Code 22: someone disabled the device (to turn the cables off, say). The
+# driver is installed all the same; a restart wouldn't change that, and it
+# isn't a failure. The device stays as it was left.
+if ($problem -eq 22) {
+    Write-Host ''
+    Write-Host 'Splitter is installed, but its device is disabled, so there are no cables.' -ForegroundColor Yellow
+    Write-Host 'To turn the cables on: Device Manager > Sound, video and game controllers > Splitter Cables > Enable device,'
+    Write-Host "or, as administrator: pnputil /enable-device ""$($dev.PNPDeviceID)"""
+    exit 0
+}
 if ($problem -eq 14 -or ($problem -ne 0 -and $reboot)) {
     $reboot = $true
 } elseif ($problem -ne 0) {
