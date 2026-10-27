@@ -128,6 +128,7 @@ if ($existing.Count -gt 1) {
 }
 
 $cer = Join-Path $here 'splitter-test.cer'
+$certAdded = @()    # the stores this run added the test certificate to
 if (Test-Path $cer) {
     # A test build: Windows loads it only in test-signing mode.
     # The options this boot started with (the same in every language,
@@ -149,7 +150,9 @@ if (Test-Path $cer) {
         ) -join [Environment]::NewLine)
     }
     Write-Host 'Trusting the Splitter test certificate on this PC...'
+    $certThumbprint = (Get-PfxCertificate -FilePath $cer).Thumbprint
     foreach ($store in 'Root', 'TrustedPublisher') {
+        if (-not (Test-Path "Cert:\LocalMachine\$store\$certThumbprint")) { $certAdded += $store }
         Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\$store" | Out-Null
     }
 }
@@ -256,7 +259,15 @@ try {
         $reboot = [SplitterSetup]::CreateAndInstall($hwid, $inf)
     }
 } catch {
-    Fail ("Installing the driver failed: " + $_.Exception.Message +
+    $why = $_.Exception.Message
+    # Nothing was installed, so the PC shouldn't go on trusting the test
+    # certificate either: take back what this run added (a certificate that
+    # was trusted before stays).
+    foreach ($store in $certAdded) {
+        try { Remove-Item "Cert:\LocalMachine\$store\$certThumbprint" } catch { }
+    }
+    if ($certAdded) { Write-Host 'The test certificate is no longer trusted on this PC (nothing was installed).' }
+    Fail ("Installing the driver failed: " + $why +
         [Environment]::NewLine + 'Details: C:\Windows\INF\setupapi.dev.log')
 }
 
