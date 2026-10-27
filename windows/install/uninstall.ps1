@@ -7,13 +7,14 @@
 
     Removes every device with hardware id ROOT\Splitter, then every Splitter
     driver package (splitter.inf from provider BananaSplit) from the driver
-    store. With -RemoveCertificate it also removes the Splitter test
-    certificate from this PC's trusted stores.
+    store, and the Splitter test certificates that install.ps1 added to
+    this PC's trusted stores.
     Test-signing mode is left as it is (bcdedit /set testsigning off turns
     it off, after a restart).
 #>
 [CmdletBinding()]
 param(
+    # Accepted for older instructions; the certificates are always removed.
     [switch] $RemoveCertificate
 )
 
@@ -59,18 +60,26 @@ foreach ($p in $drivers) {
     Read-PnputilResult
 }
 
-if ($RemoveCertificate) {
-    foreach ($store in 'Root', 'TrustedPublisher') {
-        Get-ChildItem "Cert:\LocalMachine\$store" |
-            Where-Object { $_.Subject -eq 'CN=Splitter test signing (BananaSplit)' } |
-            ForEach-Object {
-                Write-Host "Removing test certificate $($_.Thumbprint) from $store..."
-                Remove-Item $_.PSPath
-            }
+# The test certificates. install.ps1 makes this PC trust the one of each
+# test build it installs, as a root and as a publisher; left behind, they
+# would keep the PC trusting whatever their keys sign, long after Splitter
+# is gone. (Before this, only -RemoveCertificate removed them.)
+$certs = 0
+foreach ($store in 'Root', 'TrustedPublisher') {
+    foreach ($c in @(Get-ChildItem "Cert:\LocalMachine\$store" |
+            Where-Object { $_.Subject -eq 'CN=Splitter test signing (BananaSplit)' })) {
+        Write-Host "Removing test certificate $($c.Thumbprint) from $store..."
+        try {
+            Remove-Item $c.PSPath
+            $certs++
+        } catch {
+            Write-Host "  failed: $($_.Exception.Message)" -ForegroundColor Red
+            $failed = $true
+        }
     }
 }
 
-if ($devices.Count -eq 0 -and $drivers.Count -eq 0) {
+if ($devices.Count -eq 0 -and $drivers.Count -eq 0 -and $certs -eq 0 -and -not $failed) {
     Write-Host 'Splitter was not installed.'
 } elseif ($failed) {
     Write-Host 'Some parts could not be removed; see the messages above. A restart and a second run usually finish it.' -ForegroundColor Yellow

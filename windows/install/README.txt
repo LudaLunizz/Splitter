@@ -55,8 +55,8 @@ To leave test mode later: bcdedit /set testsigning off, and restart.
 
 Remove
 ------
-Double-click uninstall.cmd. It removes the cables and the driver.
-"uninstall.cmd -RemoveCertificate" also removes the test certificate.
+Double-click uninstall.cmd. It removes the cables, the driver and the
+test certificate that install.cmd made this PC trust.
 
 
 Licence
