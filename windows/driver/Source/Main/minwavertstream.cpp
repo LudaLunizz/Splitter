@@ -1257,11 +1257,15 @@ VOID CMiniportWaveRTStream::UpdatePosition
     // may cause us to lose some of the time, so we will carry the remainder forward 
     // to the next GetPosition() call.
     //
-    ULONG TimeElapsedInMS = (ULONG)(hnsCurrentTime - m_ullDmaTimeStamp + m_hnsElapsedTimeCarryForward)/10000;
+    // Splitter: in 64 bits. The sample cut the time to 32 bits before
+    // dividing, so a gap of more than 7 minutes (2^32 * 100 ns) between two
+    // updates came out as a few seconds or less.
+    ULONGLONG hnsElapsed = (ULONGLONG)hnsCurrentTime - m_ullDmaTimeStamp + m_hnsElapsedTimeCarryForward;
+    ULONGLONG TimeElapsedInMS = hnsElapsed / 10000;
     
     // Carry forward the remainder of this division so we don't fall behind with our position too much.
     //
-    m_hnsElapsedTimeCarryForward = (hnsCurrentTime - m_ullDmaTimeStamp + m_hnsElapsedTimeCarryForward) % 10000;
+    m_hnsElapsedTimeCarryForward = hnsElapsed % 10000;
     
     // Calculate how many bytes in the DMA buffer would have been processed in the elapsed
     // time.  Note that the division by 1000 to convert to milliseconds may cause us to 
@@ -1272,7 +1276,11 @@ VOID CMiniportWaveRTStream::UpdatePosition
     // In 64 bits: rate * ms overflows 32 bits after ~11 s at 32-bit float
     // stereo, which a stream polled rarely can reach.
     ULONGLONG ullBytesTimesThousand = ((ULONGLONG)m_ulDmaMovementRate * TimeElapsedInMS) + m_byteDisplacementCarryForward;
-    ULONG ByteDisplacement = (ULONG)(ullBytesTimesThousand / 1000);
+    ULONGLONG ullBytes = ullBytesTimesThousand / 1000;
+    // Splitter: what moves in one update is at most what fits in ULONG
+    // (hours, after a stall); the frames the cable moves are capped far
+    // lower (CableTransfer).
+    ULONG ByteDisplacement = ullBytes > MAXULONG ? MAXULONG : (ULONG)ullBytes;
     m_byteDisplacementCarryForward = (ULONG)(ullBytesTimesThousand % 1000);
 
     // Increment presentation position even after last buffer is rendered.
@@ -1374,6 +1382,19 @@ Arguments:
 
     ULONGLONG frame = m_ullLinearPosition / blockAlign;
     ULONGLONG end = (m_ullLinearPosition + ByteDisplacement) / blockAlign;
+
+    // After a stall (the timer held up, the PC paused) the position can jump
+    // by many buffers at once. Only the newest buffer's worth of frames is
+    // still in the buffer: older ones a render client has overwritten, and a
+    // capture client could only get as copies over each other. Copying all
+    // of them, as before, repeated old audio into the cable and took time
+    // in proportion to the stall at DISPATCH_LEVEL (minutes of audio in one
+    // timer callback).
+    ULONGLONG bufferFrames = m_ulDmaBufferSize / blockAlign;
+    if (end - frame > bufferFrames)
+    {
+        frame = end - bufferFrames;
+    }
 
     while (frame < end)
     {
