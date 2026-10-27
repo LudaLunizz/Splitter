@@ -6,8 +6,9 @@
     Run uninstall.cmd, which asks for administrator rights and runs this.
 
     Removes every device with hardware id ROOT\Splitter, then every Splitter
-    driver package from the driver store. With -RemoveCertificate it also
-    removes the Splitter test certificate from this PC's trusted stores.
+    driver package (splitter.inf from provider BananaSplit) from the driver
+    store. With -RemoveCertificate it also removes the Splitter test
+    certificate from this PC's trusted stores.
     Test-signing mode is left as it is (bcdedit /set testsigning off turns
     it off, after a restart).
 #>
@@ -44,9 +45,13 @@ foreach ($d in $devices) {
     Read-PnputilResult
 }
 
-# Driver packages: every oemNN.inf whose original name is splitter.inf.
+# Driver packages: every oemNN.inf whose original name is splitter.inf and
+# whose provider is BananaSplit (Splitter.inx). splitter.inf alone is a
+# common enough name that another company's driver could have it, and
+# /force would remove that one even while a device uses it.
 $drivers = @(Get-WindowsDriver -Online -All | Where-Object {
-    $_.OriginalFileName -and ([IO.Path]::GetFileName($_.OriginalFileName) -ieq 'splitter.inf')
+    $_.OriginalFileName -and ([IO.Path]::GetFileName($_.OriginalFileName) -ieq 'splitter.inf') -and
+    $_.ProviderName -eq 'BananaSplit'
 })
 foreach ($p in $drivers) {
     Write-Host "Removing driver package $($p.Driver)..."
