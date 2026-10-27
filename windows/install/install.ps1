@@ -46,6 +46,13 @@ function Fail([string] $text) {
     exit 1
 }
 
+# A registry value, or $null if it isn't there. (Get-ItemProperty ...).Name
+# would stop the script instead: strict mode doesn't allow a property of
+# nothing.
+function Get-RegistryValue([string] $path, [string] $name) {
+    try { (Get-ItemProperty -Path $path -Name $name -ErrorAction Stop).$name } catch { $null }
+}
+
 # --- checks ----------------------------------------------------------------
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -54,7 +61,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 # The PC's own processor, not this PowerShell's: an emulated x64 PowerShell
 # on an ARM PC reports AMD64 in its environment, but this registry value
 # stays ARM64. Is64BitOperatingSystem is true on ARM64 Windows too.
-$arch = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
+$arch = Get-RegistryValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' 'PROCESSOR_ARCHITECTURE'
 if (-not $arch) { $arch = $env:PROCESSOR_ARCHITECTURE }
 if ("$arch" -match 'ARM') {
     Fail (@(
@@ -112,7 +119,7 @@ if (Test-Path $cer) {
     # A test build: Windows loads it only in test-signing mode.
     # The options this boot started with (the same in every language,
     # unlike bcdedit's output): TESTSIGNING is there in test-signing mode.
-    $start = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name SystemStartOptions -ErrorAction SilentlyContinue).SystemStartOptions
+    $start = Get-RegistryValue 'HKLM:\SYSTEM\CurrentControlSet\Control' 'SystemStartOptions'
     $testsigning = "$start" -match '\bTESTSIGNING\b'
     if (-not $testsigning -and -not $Force) {
         Fail (@(
