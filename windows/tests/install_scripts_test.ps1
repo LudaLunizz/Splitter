@@ -196,6 +196,8 @@ $cases = @(
        want = @('CALL trust Cert:\LocalMachine\Root', 'Installing the driver failed', 'CALL remove Cert:\LocalMachine\Root\AA11', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11', 'no longer trusted') }
     @{ name = 'install fails: a certificate trusted before stays'; script = $install; case = @{ installFails = $true; trusted = @('Root') }; exit = 1
        want = @('Installing the driver failed', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11'); not = @('CALL remove Cert:\LocalMachine\Root') }
+    @{ name = 'update a disabled device (code 22)'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 22 }) }; exit = 0
+       want = @('CALL Update', 'its device is disabled', 'pnputil /enable-device "ROOT\MEDIA\0000"'); not = @('did not start it', 'restart') }
     @{ name = 'driver not started (code 52)'; script = $install; case = @{ after = @(@{ code = 52 }) }; exit = 1
        want = @('problem code 52', 'Code 52:') }
     @{ name = 'Microsoft-signed package, test mode off'; script = $install; case = @{ cer = $false; start = ' NOEXECUTE=OPTIN'; after = @(@{}) }; exit = 0
