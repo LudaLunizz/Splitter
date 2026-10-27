@@ -168,7 +168,10 @@ NTSTATUS - SUCCESS if able to configure the framework
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlAppendUnicodeToString(&g_RegistryPath, RegistryPath->Buffer);
+    // Splitter: a UNICODE_STRING's Buffer needn't end in a NUL, and
+    // RtlAppendUnicodeToString (the sample's call) reads up to one, so it
+    // could read past the string. Copy exactly Length bytes instead.
+    RtlCopyUnicodeString(&g_RegistryPath, RegistryPath);
 
     return STATUS_SUCCESS;
 }
