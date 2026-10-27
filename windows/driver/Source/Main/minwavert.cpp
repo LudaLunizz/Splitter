@@ -238,6 +238,14 @@ Arguments:
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+    // Splitter: the client's range has to be a whole KSDATARANGE_AUDIO
+    // before its channel count is read. The client says how long it is, and
+    // the sample read the field regardless, past the end of a shorter one.
+    if (ClientDataRange->FormatSize < sizeof(KSDATARANGE_AUDIO))
+    {
+        return STATUS_NO_MATCH;
+    }
+
     // Verify channel count is supported. This routine assumes a separate data
     // range for each supported channel count.
     if (((PKSDATARANGE_AUDIO)MyDataRange)->MaximumChannels != ((PKSDATARANGE_AUDIO)ClientDataRange)->MaximumChannels)
