@@ -16,7 +16,8 @@
         that apps use as a microphone.
 
     This script:
-      - checks Windows (10 version 2004 or later, 64-bit);
+      - checks Windows (10 version 2004 or later, 64-bit, not ARM);
+      - stops if Splitter 0.1.0 is installed (uninstall.cmd removes it);
       - for a test-signed package (splitter-test.cer next to this script):
         checks that test signing is on and trusts the certificate on this PC;
       - adds the driver to the driver store and creates the device, or
@@ -50,10 +51,61 @@ $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Fail 'Run install.cmd (it asks for administrator rights).'
 }
+# The PC's own processor, not this PowerShell's: an emulated x64 PowerShell
+# on an ARM PC reports AMD64 in its environment, but this registry value
+# stays ARM64. Is64BitOperatingSystem is true on ARM64 Windows too.
+$arch = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction SilentlyContinue).PROCESSOR_ARCHITECTURE
+if (-not $arch) { $arch = $env:PROCESSOR_ARCHITECTURE }
+if ("$arch" -match 'ARM') {
+    Fail (@(
+        "This PC has an ARM processor ($arch). Splitter's driver is built for x64 PCs only,",
+        'and Windows on ARM can''t load an x64 driver, so Splitter can''t run on this PC.',
+        'Nothing was changed.'
+    ) -join [Environment]::NewLine)
+}
 if (-not [Environment]::Is64BitOperatingSystem) { Fail 'Splitter needs 64-bit Windows.' }
 $build = [Environment]::OSVersion.Version.Build
 if ($build -lt 19041) { Fail "Splitter needs Windows 10 version 2004 (build 19041) or later; this is build $build." }
 if (-not (Test-Path $inf)) { Fail "driver\splitter.inf is missing next to this script." }
+
+function Get-SplitterDevices {
+    @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
+}
+
+# @() here, not only inside the function: PowerShell unrolls what a function
+# returns, so one device would come back as a single object and none as
+# $null, and with strict mode on, Windows PowerShell 5.1 can't take .Count
+# of a single object.
+$existing = @(Get-SplitterDevices)
+
+# 0.1.0 had the same hardware id, so updating would put this driver on it in
+# place. But 0.2.0 renamed the device ("Splitter Virtual Cables" became
+# "Splitter Cables"), and Windows may keep the old name on the endpoints it
+# knows, which BananaSplit doesn't recognise. So 0.1.0 has to go first. This
+# package's uninstall.cmd removes it (same hardware id, same INF name).
+$old = $false
+foreach ($d in $existing) {
+    if ($d.Name -eq 'Splitter Virtual Cables') { $old = $true }
+    $ver = $null
+    try {
+        $ver = (Get-PnpDeviceProperty -InstanceId $d.PNPDeviceID -KeyName 'DEVPKEY_Device_DriverVersion' -ErrorAction Stop).Data
+    } catch { }
+    if ("$ver" -like '0.1.*') { $old = $true }
+}
+if (@(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
+        Where-Object { $_.Name -match '\((\d+- )?Splitter Virtual Cables\)$' }).Count -gt 0) {
+    $old = $true
+}
+if ($old) {
+    Fail (@(
+        'Splitter 0.1.0 is installed, or its cables are still there (they are called',
+        '"... (Splitter Virtual Cables)"). It has to be removed before this version is installed:',
+        '  1. run uninstall.cmd from this folder;',
+        '  2. restart the PC if it asks for that;',
+        '  3. run install.cmd again.',
+        'Nothing was changed.'
+    ) -join [Environment]::NewLine)
+}
 
 $cer = Join-Path $here 'splitter-test.cer'
 if (Test-Path $cer) {
@@ -175,15 +227,6 @@ public static class SplitterSetup
 }
 '@
 
-function Get-SplitterDevices {
-    @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
-}
-
-# @() here, not only inside the function: PowerShell unrolls what a function
-# returns, so one device would come back as a single object and none as
-# $null, and with strict mode on, Windows PowerShell 5.1 can't take .Count
-# of a single object.
-$existing = @(Get-SplitterDevices)
 try {
     if ($existing.Count -gt 0) {
         Write-Host 'Splitter is installed already: updating its driver...'
