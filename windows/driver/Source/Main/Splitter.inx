@@ -22,7 +22,7 @@ Signature   = "$Windows NT$"
 Class       = MEDIA
 Provider    = %ProviderName%
 ClassGUID   = {4d36e96c-e325-11ce-bfc1-08002be10318}
-DriverVer   = 10/26/2026,0.2.0.0
+DriverVer   = 10/28/2026,0.2.1.0
 CatalogFile = splitter.cat
 PnpLockDown = 1
 

@@ -9,7 +9,7 @@
        with VERSION and Source/Main/Splitter.rc. -->
   <ItemDefinitionGroup>
     <Inf>
-      <TimeStamp>0.2.0.0</TimeStamp>
+      <TimeStamp>0.2.1.0</TimeStamp>
     </Inf>
   </ItemDefinitionGroup>
 </Project>
