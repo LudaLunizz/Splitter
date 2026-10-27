@@ -26,11 +26,15 @@ if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   fail "$TAG is released already"
 fi
 
-# the workflow's files for the tag (the newest, if it ran more than once)
-NAME="splitter-$TAG"
+# The workflow's files for the commit the tag points to now (the newest, if
+# it ran more than once). The commit is part of their name: files for the
+# tag's name alone could come from a commit the tag pointed to before it
+# was moved.
+SHA=$(gh api "repos/$REPO/commits/$TAG" --jq .sha) || fail "no tag $TAG on GitHub"
+NAME="splitter-$TAG-$SHA"
 RUN=$(gh api "repos/$REPO/actions/artifacts?name=$NAME" \
   --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | last | .workflow_run.id // empty')
-[ -n "$RUN" ] || fail "no release files for $TAG: has the release workflow finished for it?"
+[ -n "$RUN" ] || fail "no release files for $TAG at ${SHA%"${SHA#???????}"}: has the release workflow finished for it?"
 # Only from a finished, successful run of release.yml in this repository:
 # a pull request's run could leave files of the same name.
 FROM=$(gh api "repos/$REPO/actions/runs/$RUN" --jq '"\(.path) \(.event) \(.conclusion) \(.head_repository.full_name)"')
