@@ -222,10 +222,9 @@ Still to check on a real PC in test mode:
 
 ## Contributing
 
-Issues and pull requests are welcome. Please run
-`windows/tests/cablerule_test.cpp` and `windows/tests/inf_check.py` (and
-`windows/build.ps1`, if you are on Windows) before opening a pull request;
-CI runs all three.
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has
+the commands CI runs and the rules for issues and pull requests. Security
+problems go to the private form, see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
