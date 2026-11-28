@@ -246,9 +246,10 @@ Arguments:
         return STATUS_NO_MATCH;
     }
 
-    // Verify channel count is supported. This routine assumes a separate data
-    // range for each supported channel count.
-    if (((PKSDATARANGE_AUDIO)MyDataRange)->MaximumChannels != ((PKSDATARANGE_AUDIO)ClientDataRange)->MaximumChannels)
+    // Verify channel count is supported. Splitter: a client range that reaches
+    // as far as the cable's channel count (1 to 8 channels, say) contains it;
+    // the sample compared for equality, which refused every such range.
+    if (((PKSDATARANGE_AUDIO)ClientDataRange)->MaximumChannels < ((PKSDATARANGE_AUDIO)MyDataRange)->MaximumChannels)
     {
         return STATUS_NO_MATCH;
     }
