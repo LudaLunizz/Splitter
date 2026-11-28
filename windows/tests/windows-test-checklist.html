@@ -24,8 +24,8 @@ li { margin-bottom: 1pt; }
 </style></head><body>
 
 <h1>Splitter Windows Test</h1>
-<div class="sub">Test package <code>splitter-0.2.1-windows-x64.zip</code> (built by the CI of pull request #2, which holds #1's fixes too) ·
-Splitter 0.2.1, github.com/LudaLunizz/Splitter · about 1¾ hours plus a long run</div>
+<div class="sub">Test package <code>splitter-0.2.2-windows-x64.zip</code> (built by the CI of the tag v0.2.2) ·
+Splitter 0.2.2, github.com/LudaLunizz/Splitter · about 1¾ hours plus a long run</div>
 
 <div class="box">
 <b>How to fill it in:</b> for every row write <b>OK</b>, <b>FAIL</b> or <b>skipped</b> in the right column. On a FAIL, write down what you saw
@@ -39,7 +39,7 @@ Splitter 0.2.1, github.com/LudaLunizz/Splitter · about 1¾ hours plus a long ru
 <tr><td class="n">0.2</td><td><b>Test mode is on.</b> Secure Boot must be off. In an administrator Command Prompt: <code>bcdedit /set testsigning on</code>, then restart.
 "Test Mode" shows at the bottom right of the desktop. <span class="ex">Undo after the test: <code>bcdedit /set testsigning off</code>, restart.</span></td><td class="r"></td></tr>
 <tr><td class="n">0.3</td><td><b>BananaSplit 2.8.6</b> is installed (github.com/LudaLunizz/BananaSplit/releases).</td><td class="r"></td></tr>
-<tr><td class="n">0.4</td><td>Write down what Splitter is installed now: <b>none</b>, the released <b>v0.2.0</b>, or <b>0.1.0</b> (in Sound settings its cables end in
+<tr><td class="n">0.4</td><td>Write down what Splitter is installed now: <b>none</b>, the released <b>v0.2.1</b>, or <b>0.1.0</b> (in Sound settings its cables end in
 "(Splitter Virtual Cables)").</td><td class="r"></td></tr>
 </table>
 
@@ -56,7 +56,7 @@ A2, A3, B1, B2 Input: 11 in all.</td><td class="r"></td></tr>
 <tr><td class="n">A4</td><td><b>Recording</b> devices: <b>Splitter 1 Output</b> to <b>Splitter 6 Output</b>, and <b>Splitter A1</b>, A2, A3, B1, B2: 11 in all.
 Splitter A1 to B2 show as <b>microphones</b>.</td><td class="r"></td></tr>
 <tr><td class="n">A5</td><td>Device Manager › Sound, video and game controllers: <b>one</b> "Splitter Cables", with no yellow warning sign.
-Its Properties › Driver tab says <b>Driver Version 0.2.1.0</b>.</td><td class="r"></td></tr>
+Its Properties › Driver tab says <b>Driver Version 0.2.2.0</b>.</td><td class="r"></td></tr>
 <tr><td class="n">A6</td><td>Run <code>install.cmd</code> <b>a second time</b>. Expect: "Splitter is installed already: updating its driver…", no red text, the same 22 cables,
 and still only one "Splitter Cables" in Device Manager.</td><td class="r"></td></tr>
 <tr><td class="n">A7</td><td><b>Disabled device:</b> in Device Manager, right-click "Splitter Cables" › Disable device, then run <code>install.cmd</code>.

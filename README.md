@@ -36,7 +36,7 @@ In both tables, the device you pick in other apps is the one with the short
 name. Windows shows each device with the device name after it, for example
 `Splitter 3 (Splitter Cables)` or `Splitter B1 (Splitter Cables)`.
 
-Status: **Windows only, version 0.2.1, test-signed.** It is on the
+Status: **Windows only, version 0.2.2, test-signed.** It is on the
 [Releases](https://github.com/LudaLunizz/Splitter/releases) page, and it
 installs only on a PC in test-signing mode (see
 [Signing](#signing-why-this-build-only-runs-in-test-mode)). Linux already
@@ -208,7 +208,7 @@ Windows 10 and 11 load a kernel driver only if Microsoft has signed it.
 
 ## Not tested yet
 
-Version 0.2.1 has not been run on a real PC yet. What has been checked:
+Version 0.2.2 has not been run on a real PC yet. What has been checked:
 
 - CI builds it with Visual Studio and the WDK on GitHub's Windows runner,
   and InfVerif and Inf2Cat pass with no errors or warnings;
@@ -231,7 +231,7 @@ Still to check on a real PC in test mode:
   that polls;
 - the latency;
 - running for a long time without glitches;
-- install, update (0.2.1 over 0.2.0) and uninstall, and that BananaSplit
+- install, update (0.2.2 over 0.2.1) and uninstall, and that BananaSplit
   recognises all eleven cables afterwards;
 - Driver Verifier.
 
