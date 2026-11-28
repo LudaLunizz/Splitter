@@ -2169,8 +2169,23 @@ CAdapterCommon::InstallEndpointFilters
         }
     }
 
-    ntStatus = GetCachedSubdevice(MiniportPair->WaveName, &unknownWave, &unknownMiniWave);
-    if (!NT_SUCCESS(ntStatus) || NULL == unknownWave || NULL == unknownMiniWave)
+    // Splitter: a topology half that failed to install or to be cached
+    // fails the endpoint. The sample went on with the wave half, whose
+    // status then overwrote the error: the endpoint was reported as
+    // installed while the cable had no topology and no connection.
+    BOOL bTopologyFailed = !NT_SUCCESS(ntStatus) || NULL == unknownTopology;
+    if (bTopologyFailed)
+    {
+        if (NT_SUCCESS(ntStatus))
+        {
+            ntStatus = STATUS_UNSUCCESSFUL;
+        }
+    }
+    else
+    {
+        ntStatus = GetCachedSubdevice(MiniportPair->WaveName, &unknownWave, &unknownMiniWave);
+    }
+    if (!bTopologyFailed && (!NT_SUCCESS(ntStatus) || NULL == unknownWave || NULL == unknownMiniWave))
     {
         bWaveCreated = TRUE;
 
@@ -2199,7 +2214,12 @@ CAdapterCommon::InstallEndpointFilters
         }
     }
 
-    if (unknownTopology && unknownWave)
+    if (NT_SUCCESS(ntStatus) && (NULL == unknownTopology || NULL == unknownWave))
+    {
+        ntStatus = STATUS_UNSUCCESSFUL;
+    }
+
+    if (NT_SUCCESS(ntStatus))
     {
         //
         // register wave <=> topology connections
