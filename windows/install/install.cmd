@@ -11,8 +11,19 @@ if %errorlevel% neq 0 (
     set "SPLITTER_SELF=%~f0"
     set "SPLITTER_ARGS=%*"
     powershell -NoProfile -Command "$a = $env:SPLITTER_ARGS; if ($a) { Start-Process -FilePath $env:SPLITTER_SELF -ArgumentList $a -Verb RunAs } else { Start-Process -FilePath $env:SPLITTER_SELF -Verb RunAs }"
-    exit /b
+    rem If asking for rights failed (the prompt was cancelled), say so and
+    rem keep the window open: it would close with the error unread.
+    if errorlevel 1 (
+        echo.
+        echo Administrator rights are needed, and they were not given.
+        if not defined SPLITTER_NOPAUSE pause
+        exit /b 1
+    )
+    exit /b 0
 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1" %*
+set "SPLITTER_RC=%errorlevel%"
 echo.
-pause
+rem SPLITTER_NOPAUSE=1 skips the wait for a key (for scripts and terminals).
+if not defined SPLITTER_NOPAUSE pause
+exit /b %SPLITTER_RC%
