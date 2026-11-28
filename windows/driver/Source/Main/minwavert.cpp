@@ -1103,8 +1103,9 @@ CMiniportWaveRT::IsFormatSupported
         if (!IsEqualGUIDAligned(pFormat->DataFormat.SubFormat, _pDataFormat->SubFormat)) { continue; }
         if (!IsEqualGUIDAligned(pFormat->DataFormat.Specifier, _pDataFormat->Specifier)) { continue; }
         // Splitter: the client's format must hold what is read from it below (the sample checked
-        // the size of its own table entry instead).
-        if (_pDataFormat->FormatSize < sizeof(KSDATAFORMAT_WAVEFORMATEX)) { continue; }
+        // the size of its own table entry instead). Not sizeof(KSDATAFORMAT_WAVEFORMATEX): that is
+        // padded to 88 bytes, while a plain WAVEFORMATEX format with cbSize 0 is 82 bytes long.
+        if (_pDataFormat->FormatSize < sizeof(KSDATAFORMAT) + sizeof(WAVEFORMATEX)) { continue; }
 
         // WAVEFORMATEX VALIDATION
         PWAVEFORMATEX pWaveFormat = reinterpret_cast<PWAVEFORMATEX>(_pDataFormat + 1);
