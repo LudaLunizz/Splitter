@@ -43,8 +43,10 @@ _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID CableRingPush(_In_ ULONG Cable, _In_reads_(Frames * CABLE_RING_CHANNELS) const FLOAT* Samples, _In_ ULONG Frames);
 
 // Take Frames frames out of cable Cable's ring; silence where there is none.
+// Rest is how many more frames the same transfer pulls right after these
+// (CableCursorTake keeps the margin for all of them).
 _IRQL_requires_max_(DISPATCH_LEVEL)
-VOID CableRingPull(_In_ ULONG Cable, _Out_writes_(Frames * CABLE_RING_CHANNELS) FLOAT* Samples, _In_ ULONG Frames);
+VOID CableRingPull(_In_ ULONG Cable, _Out_writes_(Frames * CABLE_RING_CHANNELS) FLOAT* Samples, _In_ ULONG Frames, _In_ ULONG Rest);
 
 // A capture stream starts: begin again behind the writer's current position.
 _IRQL_requires_max_(DISPATCH_LEVEL)

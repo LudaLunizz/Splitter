@@ -94,7 +94,7 @@ VOID CableRingPush(ULONG Cable, const FLOAT* Samples, ULONG Frames)
 
 #pragma code_seg()
 _Use_decl_annotations_
-VOID CableRingPull(ULONG Cable, FLOAT* Samples, ULONG Frames)
+VOID CableRingPull(ULONG Cable, FLOAT* Samples, ULONG Frames, ULONG Rest)
 {
     RtlZeroMemory(Samples, sizeof(FLOAT) * Frames * CABLE_RING_CHANNELS);
 
@@ -111,7 +111,7 @@ VOID CableRingPull(ULONG Cable, FLOAT* Samples, ULONG Frames)
     // Decide where to read from and how many frames are real audio (the
     // rest stays silent), then copy them.
     ULONGLONG from;
-    ULONG     count = CableCursorTake(&ring->Cursor, Frames, &from);
+    ULONG     count = CableCursorTake(&ring->Cursor, Frames, Rest, &from);
     for (ULONG f = 0; f < count; f++)
     {
         ULONG i = (ULONG)((from + f) & CABLE_RING_MASK) * CABLE_RING_CHANNELS;

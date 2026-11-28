@@ -1404,7 +1404,7 @@ Arguments:
 
         if (m_bCapture)
         {
-            CableRingPull(m_ulCable, samples, run);
+            CableRingPull(m_ulCable, samples, run, (ULONG)min(end - frame - run, (ULONGLONG)MAXULONG));
             CableEncode(samples, m_ulCableFormat, m_pDmaBuffer + offset, run);
         }
         else
