@@ -141,6 +141,13 @@ static __inline ULONG CableCursorTake(CABLE_CURSOR* c, ULONG Frames, ULONG Rest,
 // skips ahead by itself.
 static __inline void CableCursorSkip(CABLE_CURSOR* c, ULONGLONG Frames)
 {
+    // A reader that has not started has no position that means anything:
+    // priming sets it. Moving it only delayed the start.
+    if (!c->Primed)
+    {
+        return;
+    }
+
     ULONGLONG avail = c->Write - c->Read;
 
     if (Frames < avail)

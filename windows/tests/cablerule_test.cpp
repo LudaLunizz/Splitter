@@ -278,6 +278,22 @@ static void test_skipped_frames_dont_add_latency() {
     CHECK(!r.c.Primed);
 }
 
+static void test_skip_on_an_unprimed_reader_changes_nothing() {
+    Ring r;
+    std::vector<float> w, out;
+    ramp(w, 0, 1500); r.push(w.data(), 1500);
+    // not primed yet (it waits for the margin plus a read)
+    CHECK(!r.c.Primed);
+    ULONGLONG before = r.c.Read;
+    CableCursorSkip(&r.c, 480);
+    CHECK(r.c.Read == before);
+    CHECK(!r.c.Primed);
+    // and it starts as soon as it would have without the skip
+    pull_in_pieces(r, 480, out);
+    CHECK(r.c.Primed);
+    CHECK(r.c.Write - r.c.Read == CABLE_RING_MARGIN_FRAMES);
+}
+
 static void test_huge_write_keeps_newest() {
     Ring r;
     std::vector<float> w;
@@ -438,6 +454,7 @@ int main() {
     test_late_reader_skips_ahead();
     test_pieces_keep_the_margin();
     test_skipped_frames_dont_add_latency();
+    test_skip_on_an_unprimed_reader_changes_nothing();
     test_huge_write_keeps_newest();
     test_formats_round_trip();
     test_integer_audio_passes_unchanged();
