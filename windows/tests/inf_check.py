@@ -165,6 +165,24 @@ for n in range(1, count + 1):
     if not re.search(rf'SPLITTER_RENDER_TOPO\({n}\)', toptable) or not re.search(rf'SPLITTER_CAPTURE_TOPO\({n}, KSNODETYPE_\w+\)', toptable):
         bad(f'cabletoptable.h: cable {n} not instantiated')
 
+# The endpoint names are the contract with BananaSplit (it finds the cables by
+# them: BANANASPLIT-CHANGES.md), the README and the install scripts, so they
+# are written out here: a changed or mistyped name in the INF is a failure.
+expected_names = []
+for n in range(1, 7):
+    expected_names += [f'Splitter {n}', f'Splitter {n} Output']
+for bus in ('A1', 'A2', 'A3', 'B1', 'B2'):
+    expected_names += [f'Splitter {bus} Input', f'Splitter {bus}']
+if count != 11:
+    bad(f'{count} cables; the names below are for 11')
+else:
+    got = []
+    for n in range(1, count + 1):
+        got += [strings.get(f'Render{n}Name'), strings.get(f'Capture{n}Name')]
+    for g, e in zip(got, expected_names):
+        if g != e:
+            bad(f'endpoint name {g!r} in the INF, expected {e!r}')
+
 if len(set(n.lower() for n in names if n)) != len(names):
     bad('endpoint names are not unique')
 all_guids = re.findall(r'DEFINE_GUIDSTRUCT\("([0-9A-F-]+)"', endpoints)
