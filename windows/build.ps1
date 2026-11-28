@@ -174,7 +174,11 @@ if (-not $NoTestSign) {
     $keep = $false
     try {
         if ($CertificatePfx) {
-            $sec = ConvertTo-SecureString -String $CertificatePassword -AsPlainText -Force
+            # A PFX without a password has an empty one: an empty string can't go
+            # into ConvertTo-SecureString (it stops with a message about an
+            # empty argument that doesn't say what to do).
+            $sec = if ($CertificatePassword) { ConvertTo-SecureString -String $CertificatePassword -AsPlainText -Force }
+                   else { New-Object Security.SecureString }
             $tp = @((Get-PfxData -FilePath $CertificatePfx -Password $sec).EndEntityCertificates)[0].Thumbprint
             $keep = [bool]$tp -and (Test-Path "Cert:\CurrentUser\My\$tp")
             $cert = Import-PfxCertificate -FilePath $CertificatePfx -Password $sec -CertStoreLocation Cert:\CurrentUser\My |
