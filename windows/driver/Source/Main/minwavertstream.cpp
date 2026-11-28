@@ -475,19 +475,27 @@ VOID CMiniportWaveRTStream::FreeBufferWithNotification
 
     PAGED_CODE();
 
-    if (Mdl_ != NULL)
-    {
-        if (m_pDmaBuffer != NULL)
-        {
-            m_pPortStream->UnmapAllocatedPages(m_pDmaBuffer, Mdl_);
-            m_pDmaBuffer = NULL;
-        }
-        
-        m_pPortStream->FreePagesFromMdl(Mdl_);
-    }
-    
+    // Splitter: take the buffer away from the timer first, under its lock,
+    // and only then unmap it: the sample unmapped it while a tick could be
+    // copying audio into it (UpdatePosition returns at once without a size).
+    BYTE* pMapped;
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_PositionSpinLock, &oldIrql);
+    pMapped = m_pDmaBuffer;
+    m_pDmaBuffer = NULL;
     m_ulDmaBufferSize = 0;
     m_ulNotificationsPerBuffer = 0;
+    KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
+
+    if (Mdl_ != NULL)
+    {
+        if (pMapped != NULL)
+        {
+            m_pPortStream->UnmapAllocatedPages(pMapped, Mdl_);
+        }
+
+        m_pPortStream->FreePagesFromMdl(Mdl_);
+    }
 
     return;
 }
@@ -639,19 +647,27 @@ _In_        ULONG       Size_
 
     PAGED_CODE();
 
+    // Splitter: take the buffer away from the timer first, under its lock,
+    // and only then unmap it: the sample unmapped it while a tick could be
+    // copying audio into it (UpdatePosition returns at once without a size).
+    BYTE* pMapped;
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_PositionSpinLock, &oldIrql);
+    pMapped = m_pDmaBuffer;
+    m_pDmaBuffer = NULL;
+    m_ulDmaBufferSize = 0;
+    m_ulNotificationsPerBuffer = 0;
+    KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
+
     if (Mdl_ != NULL)
     {
-        if (m_pDmaBuffer != NULL)
+        if (pMapped != NULL)
         {
-            m_pPortStream->UnmapAllocatedPages(m_pDmaBuffer, Mdl_);
-            m_pDmaBuffer = NULL;
+            m_pPortStream->UnmapAllocatedPages(pMapped, Mdl_);
         }
 
         m_pPortStream->FreePagesFromMdl(Mdl_);
     }
-
-    m_ulDmaBufferSize = 0;
-    m_ulNotificationsPerBuffer = 0;
 }
 
 //=============================================================================
@@ -1133,6 +1149,14 @@ NTSTATUS CMiniportWaveRTStream::SetState
             {
                 // Acquire stream resources
             }
+            // Splitter: the 1 ms timer only stops on PAUSE in the sample, so a
+            // RUN to STOP (or ACQUIRE) change left it firing on a stream that
+            // had just been reset, over a buffer about to be freed.
+            if (m_KsState == KSSTATE_RUN)
+            {
+                ExCancelTimer(m_pNotificationTimer, NULL);
+                KeFlushQueuedDpcs();
+            }
             KeAcquireSpinLock(&m_PositionSpinLock, &oldIrql);
             // Reset DMA
             m_llPacketCounter = 0;
@@ -1160,6 +1184,11 @@ NTSTATUS CMiniportWaveRTStream::SetState
             {
                 // Acquire stream resources
             }
+            if (m_KsState == KSSTATE_RUN)
+            {
+                ExCancelTimer(m_pNotificationTimer, NULL);
+                KeFlushQueuedDpcs();
+            }
             break;
             
         case KSSTATE_PAUSE:
@@ -1181,6 +1210,14 @@ NTSTATUS CMiniportWaveRTStream::SetState
             break;
 
         case KSSTATE_RUN:
+            // Splitter: RUN again while running changed nothing in the sample
+            // but the start time, which dropped the time since the last tick,
+            // and the timer was set again.
+            if (m_KsState == KSSTATE_RUN)
+            {
+                break;
+            }
+
             // Splitter: a capture half that starts plays only what is
             // played into the cable from now on.
             if (m_bCapture && m_KsState != KSSTATE_RUN)
@@ -1566,6 +1603,13 @@ TimerNotifyRT
 
     KIRQL oldIrql;
     KeAcquireSpinLock(&_this->m_PositionSpinLock, &oldIrql);
+
+    // Splitter: a tick that was already queued when the stream left RUN
+    // moves nothing.
+    if (_this->m_KsState != KSSTATE_RUN)
+    {
+        goto End;
+    }
 
     qpc = KeQueryPerformanceCounter(&qpcFrequency);
 
