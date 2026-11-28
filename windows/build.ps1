@@ -71,6 +71,10 @@ $props = Get-Content (Join-Path $driverDir 'Directory.Build.props') -Raw
 $v4 = "$version.0"
 if ($inx -notmatch "DriverVer\s*=\s*[\d/]+,$([regex]::Escape($v4))") { throw "Splitter.inx DriverVer is not $v4" }
 if ($rc -notmatch "SPLITTER_VERSION_STR\s+""$([regex]::Escape($v4))""") { throw "Splitter.rc is not $v4" }
+# FILEVERSION and PRODUCTVERSION come from the binary define, which is its own
+# line: a bump that forgot it would sign a splitter.sys with two versions.
+$vbin = $v4.Replace('.', ',')
+if ($rc -notmatch "SPLITTER_VERSION_BIN\s+$([regex]::Escape($vbin))\s*($|\r|\n)") { throw "Splitter.rc SPLITTER_VERSION_BIN is not $vbin" }
 if ($props -notmatch "<TimeStamp>$([regex]::Escape($v4))</TimeStamp>") { throw "Directory.Build.props TimeStamp is not $v4" }
 
 # 2. Build
@@ -116,6 +120,10 @@ if (-not (Test-Path $sys)) {
 Write-Host "Built: $($inf.FullName)"
 Write-Host "Built: $sys"
 Get-Content $inf.FullName | Select-String -Pattern '^\s*DriverVer' | ForEach-Object { Write-Host "  $_" }
+# What stampinf made of the .inx must still say this version.
+if (-not (Get-Content $inf.FullName | Select-String -Pattern "^\s*DriverVer\s*=\s*[\d/]+,$([regex]::Escape($v4))(?![\d.])" -Quiet)) {
+    throw "the built splitter.inf's DriverVer is not $v4"
+}
 
 # 3. InfVerif (the same checks the Hardware Dev Center runs for desktop
 #    drivers, /w = Windows Driver requirements).
