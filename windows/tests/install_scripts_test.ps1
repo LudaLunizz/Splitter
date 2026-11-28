@@ -82,7 +82,11 @@ public static class SplitterSetup {
     function global:Get-CimInstance {
         param([string] $ClassName, [string] $Filter)
         if ($Filter -like '*AudioEndpoint*') {
-            foreach ($n in $global:sc.endpoints) { [pscustomobject]@{ Name = $n } }
+            # A name, or @{ name; present } for one Windows remembers.
+            foreach ($n in $global:sc.endpoints) {
+                if ($n -is [hashtable]) { [pscustomobject]@{ Name = $n.name; Present = [bool]$n.present } }
+                else { [pscustomobject]@{ Name = $n } }
+            }
             return
         }
         # Devices as they are before the install step, and after it.
@@ -206,6 +210,8 @@ $cases = @(
        not = @('CALL CreateAndInstall', 'CALL Update') }
     @{ name = 'setup code can''t load: nothing changed'; script = $install; case = @{ addTypeFails = $true }; exit = 1
        want = @('could not load the setup code', 'Nothing was changed'); not = @('CALL trust', 'CALL CreateAndInstall') }
+    @{ name = 'only ghosts of 0.1.0 cables (not present): install goes ahead'; script = $install; case = @{ after = @(@{}); endpoints = @(@{ name = 'Splitter 1 (Splitter Virtual Cables)'; present = $false }, @{ name = 'Splitter 2 (Splitter Cables)'; present = $false }, 'Splitter 1 (Splitter Cables)') }; exit = 0
+       want = @('CALL CreateAndInstall', 'Splitter 1 (Splitter Cables)'); not = @('Splitter 0.1.0 is installed', 'Splitter 2 (Splitter Cables)') }
     @{ name = 'update a disabled device (code 22)'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 22 }) }; exit = 0
        want = @('CALL Update', 'its device is disabled', 'pnputil /enable-device "ROOT\MEDIA\0000"'); not = @('did not start it', 'restart') }
     @{ name = 'driver not started (code 52)'; script = $install; case = @{ after = @(@{ code = 52 }) }; exit = 1
