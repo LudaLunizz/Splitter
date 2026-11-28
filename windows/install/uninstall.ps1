@@ -64,10 +64,18 @@ foreach ($p in $drivers) {
 # test build it installs, as a root and as a publisher; left behind, they
 # would keep the PC trusting whatever their keys sign, long after Splitter
 # is gone. (Before this, only -RemoveCertificate removed them.)
+# A package built with build.ps1 -CertificatePfx has a certificate of its
+# own, under any name: the one next to this script is found by thumbprint.
 $certs = 0
+$packageCert = $null
+$cer = Join-Path $PSScriptRoot 'splitter-test.cer'
+if (Test-Path $cer) {
+    try { $packageCert = (Get-PfxCertificate -FilePath $cer).Thumbprint } catch { }
+}
 foreach ($store in 'Root', 'TrustedPublisher') {
     foreach ($c in @(Get-ChildItem "Cert:\LocalMachine\$store" |
-            Where-Object { $_.Subject -eq 'CN=Splitter test signing (BananaSplit)' })) {
+            Where-Object { $_.Subject -eq 'CN=Splitter test signing (BananaSplit)' -or
+                ($packageCert -and $_.Thumbprint -eq $packageCert) })) {
         Write-Host "Removing test certificate $($c.Thumbprint) from $store..."
         try {
             Remove-Item $c.PSPath

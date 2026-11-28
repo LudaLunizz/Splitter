@@ -220,6 +220,10 @@ $cases = @(
     @{ name = 'uninstall: test certificates go too, others stay'; script = $uninstall; case = @{ before = @(@{}); packages = @($ours); certs = $certs }; exit = 0
        want = @('CALL remove Cert:\LocalMachine\Root\AA11', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11', 'CALL remove Cert:\LocalMachine\Root\BB22', 'Splitter is removed.')
        not = @('CC33') }
+    @{ name = 'uninstall: the package''s own certificate (-CertificatePfx) goes too'; script = $uninstall; case = @{ certs = @(@{ store = 'Root'; subject = 'CN=Own test cert'; tp = 'AA11' }, $certs[3]) }; exit = 0
+       want = @('CALL remove Cert:\LocalMachine\Root\AA11'); not = @('CC33') }
+    @{ name = 'uninstall: no package certificate, an unknown name stays'; script = $uninstall; case = @{ cer = $false; certs = @(@{ store = 'Root'; subject = 'CN=Own test cert'; tp = 'AA11' }) }; exit = 0
+       not = @('CALL remove') }
     @{ name = 'uninstall: only a test certificate left'; script = $uninstall; case = @{ certs = @($certs[0]) }; exit = 0
        want = @('CALL remove Cert:\LocalMachine\Root\AA11', 'Splitter is removed.'); not = @('not installed') }
     @{ name = 'uninstall: restart needed (3010)'; script = $uninstall; case = @{ before = @(@{}); packages = @($ours); pnputilExit = 3010 }; exit = 0
