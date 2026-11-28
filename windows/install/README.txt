@@ -38,6 +38,10 @@ driver and creates the eleven cables. Running it again updates the driver.
 If Splitter 0.1.0 is installed, double-click uninstall.cmd first (and
 restart if it asks), then install.cmd. install.cmd checks for this.
 
+From a terminal or a script: install.cmd and uninstall.cmd return the exit
+code of the script (0 = done), also when they had to open an administrator
+window first. Set SPLITTER_NOPAUSE=1 to skip the "press any key" at the end.
+
 Splitter runs on x64 PCs only, not on PCs with an ARM processor.
 
 THIS IS A TEST BUILD unless this folder has no splitter-test.cer file. A
