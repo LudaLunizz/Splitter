@@ -226,5 +226,8 @@ if ($env:GITHUB_ACTIONS) {
     Write-Output "::notice::Splitter package $name.zip: $files"
     $drv = Get-Content (Join-Path $out 'driver\splitter.inf') | Select-String -Pattern '^\s*DriverVer' | Select-Object -First 1
     $sig = Get-AuthenticodeSignature (Join-Path $out 'driver\splitter.cat')
-    Write-Output "::notice::splitter.inf $($drv.Line.Trim()); splitter.cat signature: $($sig.Status) by $($sig.SignerCertificate.Subject) ($($sig.StatusMessage))"
+    # An unsigned catalog (-NoTestSign) has no signer, and strict mode doesn't
+    # allow the property of nothing.
+    $signer = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { 'nobody (unsigned)' }
+    Write-Output "::notice::splitter.inf $($drv.Line.Trim()); splitter.cat signature: $($sig.Status) by $signer ($($sig.StatusMessage))"
 }
