@@ -1202,7 +1202,10 @@ CMiniportWaveRT::PropertyHandlerProposedFormat
         return ntStatus;
     }
 
-    cbMinSize = sizeof(KSDATAFORMAT_WAVEFORMATEXTENSIBLE);
+    // Splitter: the smallest format IsFormatSupported accepts is a plain
+    // WAVEFORMATEX one (82 bytes); asking for the 104 of an extensible one
+    // refused the plain formats that IsFormatSupported takes.
+    cbMinSize = sizeof(KSDATAFORMAT) + sizeof(WAVEFORMATEX);
    
     // Handle KSPROPERTY_TYPE_BASICSUPPORT query
     if (PropertyRequest->Verb & KSPROPERTY_TYPE_BASICSUPPORT)
@@ -1230,6 +1233,12 @@ CMiniportWaveRT::PropertyHandlerProposedFormat
     else if (PropertyRequest->Verb & KSPROPERTY_TYPE_SET)
     {
         pKsFormat = (PKSDATAFORMAT)PropertyRequest->Value;
+        // Splitter: the format must lie inside the buffer the client gave:
+        // IsFormatSupported reads as far as the format says it goes.
+        if (pKsFormat->FormatSize > PropertyRequest->ValueSize)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
         ntStatus = IsFormatSupported(kspPin->PinId, IsSystemCapturePin(kspPin->PinId) || FALSE, pKsFormat);
         if (!NT_SUCCESS(ntStatus))
         {
