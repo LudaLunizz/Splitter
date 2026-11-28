@@ -31,6 +31,14 @@ fi
 # tag's name alone could come from a commit the tag pointed to before it
 # was moved.
 SHA=$(gh api "repos/$REPO/commits/$TAG" --jq .sha) || fail "no tag $TAG on GitHub"
+# Releases come from main (CONTRIBUTING.md): a tag on a branch that never
+# went through a pull request's checks is not published. main is then
+# ahead of the tag's commit, or at it.
+ONMAIN=$(gh api "repos/$REPO/compare/$SHA...main" --jq .status) || fail "can't compare $TAG with main"
+case "$ONMAIN" in
+  identical | ahead) ;;
+  *) fail "$TAG (${SHA%"${SHA#???????}"}) is not on main ($ONMAIN): tag a commit on main" ;;
+esac
 NAME="splitter-$TAG-$SHA"
 RUN=$(gh api "repos/$REPO/actions/artifacts?name=$NAME" \
   --jq '[.artifacts[] | select(.expired | not)] | sort_by(.created_at) | last | .workflow_run.id // empty')
