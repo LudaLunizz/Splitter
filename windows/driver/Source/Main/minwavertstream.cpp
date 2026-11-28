@@ -1251,6 +1251,15 @@ VOID CMiniportWaveRTStream::UpdatePosition
 
     // Convert ticks to 100ns units.
     LONGLONG  hnsCurrentTime = KSCONVERT_PERFORMANCE_TIME(m_ullPerformanceCounterFrequency.QuadPart, ilQPC);
+
+    // Splitter: a caller that read the clock just before SetState(RUN)
+    // stamped the start time has a time before that stamp. The difference
+    // below then wrapped to about 2^64 and moved the position by 4 GiB
+    // (hours of audio) at once; such a time counts as no time passed.
+    if ((ULONGLONG)hnsCurrentTime < m_ullDmaTimeStamp)
+    {
+        hnsCurrentTime = (LONGLONG)m_ullDmaTimeStamp;
+    }
     
     // Calculate the time elapsed since the last call to GetPosition() or since the
     // DMA engine started.  Note that the division by 10000 to convert to milliseconds
