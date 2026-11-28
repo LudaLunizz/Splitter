@@ -75,6 +75,18 @@ $build = [Environment]::OSVersion.Version.Build
 if ($build -lt 19041) { Fail "Splitter needs Windows 10 version 2004 (build 19041) or later; this is build $build." }
 if (-not (Test-Path $inf)) { Fail "driver\splitter.inf is missing next to this script." }
 
+# Audio endpoints whose name matches, without the ones Windows remembers but
+# that are no longer there (Present is False: their device was removed, and
+# Device Manager shows them greyed out). Those stay listed after an
+# uninstall, and counting them, 0.1.0's ghosts sent the user back to
+# uninstall.cmd for good, which can't remove them.
+function Get-PresentEndpoints([string] $pattern) {
+    @(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" | Where-Object {
+        $present = $_.PSObject.Properties['Present']
+        $_.Name -match $pattern -and -not ($present -and $present.Value -eq $false)
+    })
+}
+
 function Get-SplitterDevices {
     @(Get-CimInstance Win32_PnPEntity | Where-Object { $_.HardwareID -contains $hwid })
 }
@@ -99,8 +111,7 @@ foreach ($d in $existing) {
     } catch { }
     if ("$ver" -like '0.1.*') { $old = $true }
 }
-if (@(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
-        Where-Object { $_.Name -match '\((\d+- )?Splitter Virtual Cables\)$' }).Count -gt 0) {
+if (@(Get-PresentEndpoints '\((\d+- )?Splitter Virtual Cables\)$').Count -gt 0) {
     $old = $true
 }
 if ($old) {
@@ -326,8 +337,7 @@ if ($problem -eq 14 -or ($problem -ne 0 -and $reboot)) {
 }
 
 # Windows writes "(2- Splitter Cables)" for a second Splitter device.
-$endpoints = @(Get-CimInstance Win32_PnPEntity -Filter "PNPClass = 'AudioEndpoint'" |
-    Where-Object { $_.Name -match '\((\d+- )?Splitter Cables\)$' } | Sort-Object Name)
+$endpoints = @(Get-PresentEndpoints '\((\d+- )?Splitter Cables\)$' | Sort-Object Name)
 Write-Host ''
 if ($endpoints.Count -gt 0) {
     Write-Host 'Splitter cables:'
