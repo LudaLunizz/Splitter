@@ -860,8 +860,17 @@ NTSTATUS CMiniportWaveRTStream::GetReadPacket
     ULONGLONG ullLinearPosition = m_ullLinearPosition;
     ULONGLONG hnsElapsedTimeCarryForward = m_hnsElapsedTimeCarryForward;
     ULONGLONG ullDmaTimeStamp = m_ullDmaTimeStamp;
+    // Splitter: read once, here: a Free call zeroes both (under this lock)
+    // at any time, and the divisions below must not see a zero.
+    ULONG ulNotifications = m_ulNotificationsPerBuffer;
+    ULONG ulBufferSize = m_ulDmaBufferSize;
 
     KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
+
+    if (ulNotifications == 0 || ulBufferSize == 0)
+    {
+        return STATUS_NOT_SUPPORTED;
+    }
 
     // The 0-based number of the last completed packet
     // FUTURE-2014/10/27 Update to allow different numbers of packets per WaveRT buffer
@@ -893,7 +902,7 @@ NTSTATUS CMiniportWaveRTStream::GetReadPacket
     // Splitter: the sample computed the packet's end, one packet late, and turned 100 ns units into
     // performance counter ticks as hns * frequency, which overflows 64 bits after 51 hours of uptime at
     // the usual 10 MHz (CableHnsToQpc).
-    ULONGLONG linearPositionOfAvailablePacket = (ULONGLONG)(packetCounter - 1) * (m_ulDmaBufferSize / m_ulNotificationsPerBuffer);
+    ULONGLONG linearPositionOfAvailablePacket = (ULONGLONG)(packetCounter - 1) * (ulBufferSize / ulNotifications);
     // Need to divide by (1000 * 10000 because m_ulDmaMovementRate is average bytes per sec
     ULONGLONG carryForwardBytes = (hnsElapsedTimeCarryForward * m_ulDmaMovementRate) / 10000000;
     ULONGLONG deltaLinearPosition = ullLinearPosition + carryForwardBytes - linearPositionOfAvailablePacket;
@@ -946,7 +955,15 @@ NTSTATUS CMiniportWaveRTStream::SetWritePacket
     KeAcquireSpinLock(&m_PositionSpinLock, &oldIrql);
     // 1-based count of completed packets, 0-based packet number of current packet
     LONGLONG currentPacket = m_llPacketCounter;
+    // Splitter: read once, here (see GetReadPacket).
+    ULONG ulNotifications = m_ulNotificationsPerBuffer;
+    ULONG ulBufferSize = m_ulDmaBufferSize;
     KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
+
+    if (ulNotifications == 0 || ulBufferSize == 0)
+    {
+        return STATUS_NOT_SUPPORTED;
+    }
 
     // If not running, the current packet hasn't actually started transfering so OS should be writing
     // to the current packet. If running, then the current packing is already transfering to hardware
@@ -968,8 +985,8 @@ NTSTATUS CMiniportWaveRTStream::SetWritePacket
         return STATUS_DATA_OVERRUN;
     }
 
-    ULONG packetSize = (m_ulDmaBufferSize / m_ulNotificationsPerBuffer);
-    ULONG packetIndex = PacketNumber % m_ulNotificationsPerBuffer;
+    ULONG packetSize = (ulBufferSize / ulNotifications);
+    ULONG packetIndex = PacketNumber % ulNotifications;
     ULONG ulCurrentWritePosition = packetIndex * packetSize;
 
     // Check if EOS flag was passed
