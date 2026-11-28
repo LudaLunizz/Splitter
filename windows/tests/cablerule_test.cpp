@@ -253,6 +253,31 @@ static void test_pieces_keep_the_margin() {
     }
 }
 
+static void test_skipped_frames_dont_add_latency() {
+    Ring r;
+    std::vector<float> w, out;
+    ULONGLONG written = 0;
+    for (int k = 0; k < 10; k++) {
+        ramp(w, written, 480); r.push(w.data(), 480); written += 480;
+        pull_in_pieces(r, 480, out);
+    }
+    CHECK(r.c.Write - r.c.Read == CABLE_RING_MARGIN_FRAMES);
+    // the capture half stalls 50 ms; the writer goes on
+    for (int k = 0; k < 5; k++) {
+        ramp(w, written, 480); r.push(w.data(), 480); written += 480;
+    }
+    // the stream keeps only its newest buffer (960 frames) and drops the rest
+    ULONG moved = 2400, buffer = 960;
+    CableCursorSkip(&r.c, moved - buffer);
+    pull_in_pieces(r, buffer, out);
+    CHECK(r.c.Write - r.c.Read == CABLE_RING_MARGIN_FRAMES);
+    CHECK(out[2 * (buffer - 1)] == (float)(written - CABLE_RING_MARGIN_FRAMES));
+    // skipping past what was written leaves the reader dry, waiting again
+    CableCursorSkip(&r.c, 100000);
+    CHECK(r.c.Read == r.c.Write);
+    CHECK(!r.c.Primed);
+}
+
 static void test_huge_write_keeps_newest() {
     Ring r;
     std::vector<float> w;
@@ -412,6 +437,7 @@ int main() {
     test_writer_stops_reader_runs_dry_then_rewaits();
     test_late_reader_skips_ahead();
     test_pieces_keep_the_margin();
+    test_skipped_frames_dont_add_latency();
     test_huge_write_keeps_newest();
     test_formats_round_trip();
     test_integer_audio_passes_unchanged();

@@ -1393,6 +1393,12 @@ Arguments:
     ULONGLONG bufferFrames = m_ulDmaBufferSize / blockAlign;
     if (end - frame > bufferFrames)
     {
+        // Splitter: a capture half moves the ring's reader past the frames
+        // it drops, or the cable would keep them as extra latency.
+        if (m_bCapture)
+        {
+            CableRingSkip(m_ulCable, end - bufferFrames - frame);
+        }
         frame = end - bufferFrames;
     }
 

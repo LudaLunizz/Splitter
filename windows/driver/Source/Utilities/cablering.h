@@ -48,6 +48,11 @@ VOID CableRingPush(_In_ ULONG Cable, _In_reads_(Frames * CABLE_RING_CHANNELS) co
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID CableRingPull(_In_ ULONG Cable, _Out_writes_(Frames * CABLE_RING_CHANNELS) FLOAT* Samples, _In_ ULONG Frames, _In_ ULONG Rest);
 
+// The capture stream dropped Frames frames unread (after a stall): move the
+// read position past them, without copying.
+_IRQL_requires_max_(DISPATCH_LEVEL)
+VOID CableRingSkip(_In_ ULONG Cable, _In_ ULONGLONG Frames);
+
 // A capture stream starts: begin again behind the writer's current position.
 _IRQL_requires_max_(DISPATCH_LEVEL)
 VOID CableRingResetReader(_In_ ULONG Cable);

@@ -135,6 +135,26 @@ static __inline ULONG CableCursorTake(CABLE_CURSOR* c, ULONG Frames, ULONG Rest,
     return Frames;
 }
 
+// The reader drops Frames frames unread (its stream skipped them after a
+// stall). Without this, the ring's read position stayed behind by that much
+// and the cable kept the extra latency, up to the 80 ms at which a reader
+// skips ahead by itself.
+static __inline void CableCursorSkip(CABLE_CURSOR* c, ULONGLONG Frames)
+{
+    ULONGLONG avail = c->Write - c->Read;
+
+    if (Frames < avail)
+    {
+        c->Read += Frames;
+    }
+    else
+    {
+        // Past what was written: dry, so wait for the margin again.
+        c->Read = c->Write;
+        c->Primed = FALSE;
+    }
+}
+
 //=============================================================================
 // Sample formats of a cable half (see cablewavtable.h). All little-endian,
 // interleaved stereo.
