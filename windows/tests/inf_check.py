@@ -107,6 +107,23 @@ for t in ifaces:
 want_render = {'KSCATEGORY_AUDIO', 'KSCATEGORY_RENDER', 'KSCATEGORY_REALTIME'}
 want_capture = {'KSCATEGORY_AUDIO', 'KSCATEGORY_CAPTURE', 'KSCATEGORY_REALTIME'}
 want_topo = {'KSCATEGORY_AUDIO', 'KSCATEGORY_TOPOLOGY'}
+# What install.ps1 and uninstall.ps1 rely on, written out: they match devices
+# by the hardware id, packages by provider and original name, and endpoints
+# by the device description in "(Splitter Cables)". A change here that the
+# scripts don't follow makes install refuse (it would read the new description
+# as 0.1.0) or uninstall leave the package behind.
+if strings.get('ProviderName') != 'BananaSplit':
+    bad(f"ProviderName is {strings.get('ProviderName')!r}; uninstall.ps1 removes only packages from 'BananaSplit'")
+if strings.get('SPLITTER_SA.DeviceDesc') != 'Splitter Cables':
+    bad(f"SPLITTER_SA.DeviceDesc is {strings.get('SPLITTER_SA.DeviceDesc')!r}; install.ps1 and BananaSplit expect 'Splitter Cables'")
+model = [t for name, lines in sections.items() if name.startswith('SPLITTER.NT') for t in lines]
+if model != ['%SPLITTER_SA.DeviceDesc% = SPLITTER_SA, ROOT\\Splitter']:
+    bad(f'the [Models] section is {model}; the scripts look for the hardware id ROOT\\Splitter')
+if not any(re.fullmatch(r'Class\s*=\s*MEDIA', t) for t in sections.get('Version', [])):
+    bad('Class is not MEDIA')
+if not any(re.fullmatch(r'CatalogFile\s*=\s*splitter\.cat', t) for t in sections.get('Version', [])):
+    bad('CatalogFile is not splitter.cat (build.ps1 makes and signs that name)')
+
 names = []
 for n in range(1, count + 1):
     for kind, cap, wave_cats in (('RENDER', 'Render', want_render), ('CAPTURE', 'Capture', want_capture)):
