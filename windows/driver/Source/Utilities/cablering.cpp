@@ -124,6 +124,23 @@ VOID CableRingPull(ULONG Cable, FLOAT* Samples, ULONG Frames, ULONG Rest)
 
 #pragma code_seg()
 _Use_decl_annotations_
+VOID CableRingSkip(ULONG Cable, ULONGLONG Frames)
+{
+    if (!g_CableRingsReady || Cable >= CABLE_RING_COUNT || Frames == 0)
+    {
+        return;
+    }
+
+    CABLE_RING* ring = &g_CableRings[Cable];
+    KIRQL       oldIrql;
+
+    KeAcquireSpinLock(&ring->Lock, &oldIrql);
+    CableCursorSkip(&ring->Cursor, Frames);
+    KeReleaseSpinLock(&ring->Lock, oldIrql);
+}
+
+#pragma code_seg()
+_Use_decl_annotations_
 VOID CableRingResetReader(ULONG Cable)
 {
     if (!g_CableRingsReady || Cable >= CABLE_RING_COUNT)
