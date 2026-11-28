@@ -14,7 +14,7 @@
 
 //=============================================================================
 // Splitter: the largest audio buffer a stream accepts (see AllocateAudioBuffer).
-#define SPLITTER_MAX_BUFFER_BYTES   (8 * 1024 * 1024)
+#define SPLITTER_MAX_BUFFER_BYTES   (2 * 1024 * 1024)
 
 #pragma code_seg("PAGE")
 CMiniportWaveRTStream::~CMiniportWaveRTStream
@@ -405,8 +405,10 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
     
     // Splitter: one buffer per stream (a second allocation would lose the
     // first's pages and mapping), and not an unbounded one: a client could
-    // pin up to 4 GiB of non-paged memory with one request. 8 MiB is 21 s of
-    // 48 kHz stereo float; Windows asks for tens of milliseconds.
+    // pin up to 4 GiB of non-paged memory with one request, and a stalled
+    // timer works through the whole buffer in one tick at DISPATCH_LEVEL.
+    // 2 MiB is 5 s of 48 kHz stereo float; Windows asks for tens of
+    // milliseconds.
     if (m_pDmaBuffer != NULL)
     {
         return STATUS_INVALID_DEVICE_STATE;
@@ -714,8 +716,10 @@ _Out_   MEMORY_CACHING_TYPE    *CacheType_
 
     // Splitter: one buffer per stream (a second allocation would lose the
     // first's pages and mapping), and not an unbounded one: a client could
-    // pin up to 4 GiB of non-paged memory with one request. 8 MiB is 21 s of
-    // 48 kHz stereo float; Windows asks for tens of milliseconds.
+    // pin up to 4 GiB of non-paged memory with one request, and a stalled
+    // timer works through the whole buffer in one tick at DISPATCH_LEVEL.
+    // 2 MiB is 5 s of 48 kHz stereo float; Windows asks for tens of
+    // milliseconds.
     if (m_pDmaBuffer != NULL)
     {
         return STATUS_INVALID_DEVICE_STATE;
