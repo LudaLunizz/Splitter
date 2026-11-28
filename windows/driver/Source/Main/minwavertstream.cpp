@@ -1651,8 +1651,11 @@ TimerNotifyRT
     
     PADAPTERCOMMON  pAdapterComm = _this->m_pMiniport->GetAdapterCommObj();
 
-    // Simple buffer underrun detection.
-    if (!_this->IsCurrentWaveRTWritePositionUpdated() && !_this->m_bEoSReceived)
+    // Simple buffer underrun detection. Splitter: render streams only. A
+    // capture stream never writes a position (only SetWritePacket does), so
+    // the sample's test reported an underrun at every packet of every
+    // running capture stream, about 100 events a second to the ETW log.
+    if (!_this->m_bCapture && !_this->IsCurrentWaveRTWritePositionUpdated() && !_this->m_bEoSReceived)
     {
         //Event type: eMINIPORT_GLITCH_REPORT
         //Parameter 1: Current linear buffer position 
