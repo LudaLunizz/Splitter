@@ -42,7 +42,13 @@ PVOID operator new
     ULONG       tag
 )
 {
-    PVOID result = ExAllocatePool2(poolFlags, iSize, tag);
+    // Splitter: the tag the caller names is not used. Every operator delete
+    // below frees with SIMPLEAUDIOSAMPLE_POOLTAG, and a block freed under
+    // another tag than it was allocated with is a bugcheck under Driver
+    // Verifier or special pool (the adapter, the miniports and the streams
+    // were allocated with their own tags). One tag for every object.
+    UNREFERENCED_PARAMETER(tag);
+    PVOID result = ExAllocatePool2(poolFlags, iSize, SIMPLEAUDIOSAMPLE_POOLTAG);
 
     return result;
 }
