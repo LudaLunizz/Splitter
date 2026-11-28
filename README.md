@@ -219,7 +219,8 @@ Version 0.2.3 has not been run on a real PC yet. What has been checked:
   filter tables agree for all eleven cables;
 - `tests/cablerule_test.cpp` passes;
 - `tests/install_scripts_test.ps1` runs `install.ps1` and `uninstall.ps1`
-  under pwsh 7 with stand-ins for the Windows parts (31 cases). It can't
+  under pwsh 7 with stand-ins for the Windows parts (32 cases, one of them compiles
+  the real setup code). It can't
   show what differs in Windows PowerShell 5.1, which `install.cmd` starts.
 
 Still to check on a real PC in test mode:
