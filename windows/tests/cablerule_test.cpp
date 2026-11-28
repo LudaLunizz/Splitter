@@ -294,6 +294,81 @@ static void test_skip_on_an_unprimed_reader_changes_nothing() {
     CHECK(r.c.Write - r.c.Read == CABLE_RING_MARGIN_FRAMES);
 }
 
+// Cases that mutations of cablerule.h survived (found by changing the rules
+// and seeing which tests still passed).
+static void test_encoding_rounds_and_sanitizes() {
+    // rounding, not truncation: 0.6 of a 16-bit step is code 1, -0.6 is -1
+    float in[2] = {0.6f / 32768.0f, -0.6f / 32768.0f};
+    UCHAR b[4];
+    CableEncode(in, CABLE_FMT_PCM16, b, 1);
+    CHECK((short)(b[0] | (b[1] << 8)) == 1);
+    CHECK((short)(b[2] | (b[3] << 8)) == -1);
+    // NaN and infinity are written as silence, in every format
+    float bad[2] = {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity()};
+    UCHAR f[8];
+    std::memset(f, 0xAA, sizeof f);
+    CableEncode(bad, CABLE_FMT_FLOAT32, f, 1);
+    for (UCHAR x : f) CHECK(x == 0);
+    UCHAR p16[4] = {0x55, 0x55, 0x55, 0x55};
+    CableEncode(bad, CABLE_FMT_PCM16, p16, 1);
+    for (UCHAR x : p16) CHECK(x == 0);
+}
+
+static void test_reset_reader_forgets_what_was_written() {
+    Ring r;
+    std::vector<float> w, out(480 * 2);
+    ramp(w, 0, 5000); r.push(w.data(), 5000);
+    CableCursorResetReader(&r.c);
+    r.pull(out.data(), 480);
+    for (float x : out) CHECK(x == 0.0f);
+    CHECK(!r.c.Primed);
+}
+
+static void test_priming_waits_for_the_whole_transfer() {
+    Ring r;
+    std::vector<float> w, out(128 * 2);
+    // margin + this read is there (960 + 128), margin + the whole transfer
+    // (128 + 400 more) is not: the reader keeps waiting
+    ramp(w, 0, 1100); r.push(w.data(), 1100);
+    r.pull(out.data(), 128, 400);
+    for (float x : out) CHECK(x == 0.0f);
+    CHECK(!r.c.Primed);
+}
+
+static void test_oversized_transfer_is_clamped() {
+    Ring r;
+    std::vector<float> w, out(128 * 2);
+    ramp(w, 0, 12000); r.push(w.data(), 12000);
+    // a transfer far larger than CABLE_RING_MAX_TAKE leaves room for
+    // MAX_TAKE frames, not for all of it
+    r.pull(out.data(), 128, 100000);
+    CHECK(r.c.Primed);
+    CHECK(r.c.Write - r.c.Read == (ULONGLONG)CABLE_RING_MARGIN_FRAMES + CABLE_RING_MAX_TAKE - 128);
+}
+
+static void test_skip_ahead_threshold_counts_the_transfer() {
+    Ring r;
+    std::vector<float> w, out(480 * 2);
+    ramp(w, 0, 3000); r.push(w.data(), 3000);
+    r.pull(out.data(), 480);             // primed, margin behind the writer
+    CHECK(r.c.Primed);
+    ramp(w, 3000, 3000); r.push(w.data(), 3000);
+    // 960 + 3000 = 3960 frames behind: later than LATE (3840) but within
+    // LATE + the 480 asked for, so the reader plays on, no skip
+    ULONGLONG before = r.c.Read;
+    r.pull(out.data(), 480);
+    CHECK(r.c.Read == before + 480);
+}
+
+static void test_ring_constants() {
+    // README.md says 0.68 s and 256 KiB per cable and a 20 ms margin
+    CHECK(CABLE_RING_COUNT == 11);
+    CHECK(CABLE_RING_FRAMES == 32768);
+    CHECK(CABLE_RING_MARGIN_FRAMES == 960);
+    CHECK(CABLE_RING_LATE_FRAMES == 3840);
+    CHECK(CABLE_RING_MAX_TAKE == 8192);
+}
+
 static void test_huge_write_keeps_newest() {
     Ring r;
     std::vector<float> w;
@@ -455,6 +530,12 @@ int main() {
     test_pieces_keep_the_margin();
     test_skipped_frames_dont_add_latency();
     test_skip_on_an_unprimed_reader_changes_nothing();
+    test_encoding_rounds_and_sanitizes();
+    test_reset_reader_forgets_what_was_written();
+    test_priming_waits_for_the_whole_transfer();
+    test_oversized_transfer_is_clamped();
+    test_skip_ahead_threshold_counts_the_transfer();
+    test_ring_constants();
     test_huge_write_keeps_newest();
     test_formats_round_trip();
     test_integer_audio_passes_unchanged();
