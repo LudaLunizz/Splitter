@@ -127,37 +127,10 @@ if ($existing.Count -gt 1) {
     ) -join [Environment]::NewLine)
 }
 
-$cer = Join-Path $here 'splitter-test.cer'
-$certAdded = @()    # the stores this run added the test certificate to
-if (Test-Path $cer) {
-    # A test build: Windows loads it only in test-signing mode.
-    # The options this boot started with (the same in every language,
-    # unlike bcdedit's output): TESTSIGNING is there in test-signing mode.
-    $start = Get-RegistryValue 'HKLM:\SYSTEM\CurrentControlSet\Control' 'SystemStartOptions'
-    $testsigning = "$start" -match '\bTESTSIGNING\b'
-    if (-not $testsigning -and -not $Force) {
-        Fail (@(
-            'This is a TEST build of Splitter (signed with a test certificate, not by Microsoft).',
-            'Windows only loads it in test-signing mode, which this PC is not in.',
-            '',
-            'To try it anyway (only on a PC you can do this on: it needs Secure Boot off,',
-            'and some games'' anti-cheat refuse to run in test mode):',
-            '  1. run, as administrator:  bcdedit /set testsigning on',
-            '  2. restart the PC, then run install.cmd again.',
-            'To leave test mode later: bcdedit /set testsigning off, and restart.',
-            '',
-            'Or wait for a Microsoft-signed release of Splitter, or use VB-CABLE meanwhile.'
-        ) -join [Environment]::NewLine)
-    }
-    Write-Host 'Trusting the Splitter test certificate on this PC...'
-    $certThumbprint = (Get-PfxCertificate -FilePath $cer).Thumbprint
-    foreach ($store in 'Root', 'TrustedPublisher') {
-        if (-not (Test-Path "Cert:\LocalMachine\$store\$certThumbprint")) { $certAdded += $store }
-        Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\$store" | Out-Null
-    }
-}
-
-# --- install ---------------------------------------------------------------
+# The setup functions, compiled before anything is changed: where PowerShell
+# may not compile code (Constrained Language Mode under AppLocker or WDAC)
+# this fails with nothing done, instead of after the certificate is trusted.
+try {
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
@@ -249,6 +222,60 @@ public static class SplitterSetup
     }
 }
 '@
+} catch {
+    Fail ('PowerShell could not load the setup code (' + $_.Exception.Message + ').' +
+        [Environment]::NewLine + 'Is PowerShell locked down on this PC (AppLocker, WDAC)? Nothing was changed.')
+}
+
+# Takes back the certificate trust this run added (a certificate that was
+# trusted before stays).
+function Undo-CertTrust {
+    foreach ($store in $script:certAdded) {
+        try { Remove-Item "Cert:\LocalMachine\$store\$script:certThumbprint" } catch { }
+    }
+    if ($script:certAdded) { Write-Host 'The test certificate is no longer trusted on this PC.' }
+}
+
+$cer = Join-Path $here 'splitter-test.cer'
+$certAdded = @()    # the stores this run added the test certificate to
+$certThumbprint = $null
+if (Test-Path $cer) {
+    # A test build: Windows loads it only in test-signing mode.
+    # The options this boot started with (the same in every language,
+    # unlike bcdedit's output): TESTSIGNING is there in test-signing mode.
+    $start = Get-RegistryValue 'HKLM:\SYSTEM\CurrentControlSet\Control' 'SystemStartOptions'
+    $testsigning = "$start" -match '\bTESTSIGNING\b'
+    if (-not $testsigning -and -not $Force) {
+        Fail (@(
+            'This is a TEST build of Splitter (signed with a test certificate, not by Microsoft).',
+            'Windows only loads it in test-signing mode, which this PC is not in.',
+            '',
+            'To try it anyway (only on a PC you can do this on: it needs Secure Boot off,',
+            'and some games'' anti-cheat refuse to run in test mode):',
+            '  1. run, as administrator:  bcdedit /set testsigning on',
+            '  2. restart the PC, then run install.cmd again.',
+            'To leave test mode later: bcdedit /set testsigning off, and restart.',
+            '',
+            'Or wait for a Microsoft-signed release of Splitter, or use VB-CABLE meanwhile.'
+        ) -join [Environment]::NewLine)
+    }
+    Write-Host 'Trusting the Splitter test certificate on this PC...'
+    $certThumbprint = (Get-PfxCertificate -FilePath $cer).Thumbprint
+    # Each store is noted before its import, so that a failed import (the
+    # second one, say) still takes back the first.
+    try {
+        foreach ($store in 'Root', 'TrustedPublisher') {
+            if (-not (Test-Path "Cert:\LocalMachine\$store\$certThumbprint")) { $certAdded += $store }
+            Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\$store" | Out-Null
+        }
+    } catch {
+        $why = $_.Exception.Message
+        Undo-CertTrust
+        Fail ('Trusting the test certificate failed: ' + $why + [Environment]::NewLine + 'Nothing was installed.')
+    }
+}
+
+# --- install ---------------------------------------------------------------
 
 try {
     if ($existing.Count -gt 0) {
@@ -261,12 +288,8 @@ try {
 } catch {
     $why = $_.Exception.Message
     # Nothing was installed, so the PC shouldn't go on trusting the test
-    # certificate either: take back what this run added (a certificate that
-    # was trusted before stays).
-    foreach ($store in $certAdded) {
-        try { Remove-Item "Cert:\LocalMachine\$store\$certThumbprint" } catch { }
-    }
-    if ($certAdded) { Write-Host 'The test certificate is no longer trusted on this PC (nothing was installed).' }
+    # certificate either.
+    Undo-CertTrust
     Fail ("Installing the driver failed: " + $why +
         [Environment]::NewLine + 'Details: C:\Windows\INF\setupapi.dev.log')
 }
