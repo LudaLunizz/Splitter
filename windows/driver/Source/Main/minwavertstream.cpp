@@ -13,6 +13,9 @@
 //=============================================================================
 
 //=============================================================================
+// Splitter: the largest audio buffer a stream accepts (see AllocateAudioBuffer).
+#define SPLITTER_MAX_BUFFER_BYTES   (8 * 1024 * 1024)
+
 #pragma code_seg("PAGE")
 CMiniportWaveRTStream::~CMiniportWaveRTStream
 ( 
@@ -400,6 +403,19 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
         return STATUS_UNSUCCESSFUL; 
     }
     
+    // Splitter: one buffer per stream (a second allocation would lose the
+    // first's pages and mapping), and not an unbounded one: a client could
+    // pin up to 4 GiB of non-paged memory with one request. 8 MiB is 21 s of
+    // 48 kHz stereo float; Windows asks for tens of milliseconds.
+    if (m_pDmaBuffer != NULL)
+    {
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+    if (RequestedSize_ > SPLITTER_MAX_BUFFER_BYTES)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
     // Splitter: every packet a whole number of frames, and the packets
     // exactly filling the buffer. The sample checked the second before
     // rounding the size down to whole frames, which could undo it: then
@@ -427,6 +443,14 @@ NTSTATUS CMiniportWaveRTStream::AllocateBufferWithNotification
     if (NULL == pBufferMdl)
     {
         return STATUS_UNSUCCESSFUL;
+    }
+
+    // Splitter: AllocatePagesForMdl may give fewer bytes than asked for, and
+    // the cable reads and writes the whole size it was told.
+    if (MmGetMdlByteCount(pBufferMdl) < RequestedSize_)
+    {
+        m_pPortStream->FreePagesFromMdl(pBufferMdl);
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     // From MSDN: 
@@ -688,6 +712,19 @@ _Out_   MEMORY_CACHING_TYPE    *CacheType_
         return STATUS_UNSUCCESSFUL;
     }
 
+    // Splitter: one buffer per stream (a second allocation would lose the
+    // first's pages and mapping), and not an unbounded one: a client could
+    // pin up to 4 GiB of non-paged memory with one request. 8 MiB is 21 s of
+    // 48 kHz stereo float; Windows asks for tens of milliseconds.
+    if (m_pDmaBuffer != NULL)
+    {
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+    if (RequestedSize_ > SPLITTER_MAX_BUFFER_BYTES)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
     RequestedSize_ -= RequestedSize_ % (m_pWfExt->Format.nBlockAlign);
 
     PHYSICAL_ADDRESS highAddress;
@@ -699,6 +736,14 @@ _Out_   MEMORY_CACHING_TYPE    *CacheType_
     if (NULL == pBufferMdl)
     {
         return STATUS_UNSUCCESSFUL;
+    }
+
+    // Splitter: AllocatePagesForMdl may give fewer bytes than asked for, and
+    // the cable reads and writes the whole size it was told.
+    if (MmGetMdlByteCount(pBufferMdl) < RequestedSize_)
+    {
+        m_pPortStream->FreePagesFromMdl(pBufferMdl);
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     // From MSDN: 
