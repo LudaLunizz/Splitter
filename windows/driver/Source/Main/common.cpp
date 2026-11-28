@@ -1890,7 +1890,7 @@ Return Value:
 
                     if (!NT_SUCCESS(ntStatus))
                     {
-                        DPF(D_TERSE, ("DisconnectTopologies: UnregisterPhysicalConnection(render) failed, 0x%x", ntStatus));
+                        DPF(D_TERSE, ("DisconnectTopologies: UnregisterPhysicalConnection(capture) failed, 0x%x", ntStatus));
                     }
                     break;
                 case CONNECTIONTYPE_WAVE_OUTPUT:
@@ -1902,19 +1902,22 @@ Return Value:
                             UnknownTopology,
                             PhysicalConnections[i].ulTopology
                         );
-                    if (!NT_SUCCESS(ntStatus2))
+                    if (!NT_SUCCESS(ntStatus))
                     {
-                        DPF(D_TERSE, ("DisconnectTopologies: UnregisterPhysicalConnection(capture) failed, 0x%x", ntStatus2));
+                        DPF(D_TERSE, ("DisconnectTopologies: UnregisterPhysicalConnection(render) failed, 0x%x", ntStatus));
                     }
                     break;
             }
 
             // cache and return the first error encountered, as it's likely the most relevent
-            if (NT_SUCCESS(ntStatus))
+            // Splitter: the sample copied ntStatus2 (never set) over ntStatus instead, so a
+            // later connection's success hid an earlier failure.
+            if (NT_SUCCESS(ntStatus2) && !NT_SUCCESS(ntStatus))
             {
-                ntStatus = ntStatus2;
+                ntStatus2 = ntStatus;
             }
-        }    
+        }
+        ntStatus = ntStatus2;
     }
     
     //
