@@ -9,12 +9,13 @@ is made.
 | Directory | What |
 |---|---|
 | `windows/driver/` | the driver (a fork of Microsoft's SimpleAudioSample), the INF and the WDK packages |
-| `windows/tests/` | `cablerule_test.cpp` (ring and formats) and `inf_check.py` (INF and C++ tables agree) |
+| `windows/tests/` | `cablerule_test.cpp` (ring and formats), `inf_check.py` (INF and C++ tables agree) and `install_scripts_test.ps1` (the install scripts, with stand-ins for Windows) |
 | `windows/build.ps1` | build, InfVerif, catalog, test signing and the zip |
 
 Building the driver needs Windows with Visual Studio 2022 or later (C++ desktop
 workload and the Spectre-mitigated libraries) and `nuget`; the WDK comes from
-NuGet. The two tests run on any system with a C++17 compiler and Python 3.
+NuGet. The first two tests run on any system with a C++17 compiler and Python 3;
+the third needs PowerShell 7 (`pwsh`), on Linux too.
 
 ## Before you open a pull request
 
@@ -25,6 +26,13 @@ cd windows
 c++ -std=c++17 -O2 -Wall -Wextra -Werror -o /tmp/cablerule_test tests/cablerule_test.cpp && /tmp/cablerule_test
 python3 tests/inf_check.py
 pwsh -File build.ps1        # on Windows only
+```
+
+CI does not run the install-script test yet, so run it yourself when your change
+touches `windows/install/`:
+
+```sh
+pwsh -NoProfile -File windows/tests/install_scripts_test.ps1
 ```
 
 Driver code that CI cannot run for real (audio through a cable, latency, long

@@ -30,6 +30,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if ($RunScript -eq 'compile-setup-code') {
+    # --- the real C# of install.ps1, which the cases replace by a stand-in:
+    # compile the here-string as it is, so a mistake in it fails here and
+    # not on the PC of whoever runs install.cmd. (pwsh 7 compiles with a
+    # newer C# than Windows PowerShell 5.1; this finds typos and wrong
+    # types, not C# 6 features that 5.1 lacks.)
+    $text = Get-Content (Join-Path $PSScriptRoot '../install/install.ps1') -Raw
+    $m = [regex]::Match($text, "(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@")
+    if (-not $m.Success) { Write-Host 'no Add-Type here-string in install.ps1'; exit 1 }
+    Add-Type -TypeDefinition $m.Groups[1].Value
+    foreach ($name in 'CreateAndInstall', 'Update') {
+        if (-not [SplitterSetup].GetMethod($name)) { Write-Host "SplitterSetup.$name is missing"; exit 1 }
+    }
+    Write-Host 'COMPILED SplitterSetup'
+    exit 0
+}
+
 if ($RunScript) {
     # --- one case: stand-ins, then the script -----------------------------
     $d = @{ build = 22631; is64 = $true; arch = 'AMD64'; start = ' NOEXECUTE=OPTIN TESTSIGNING'; cer = $true;
@@ -173,6 +190,8 @@ $certs = @(
 $cables = @('Splitter 1 (Splitter Cables)', 'Splitter B1 (Splitter Cables)')
 
 $cases = @(
+    @{ name = 'install.ps1: the real setup code compiles'; script = 'compile-setup-code'; case = @{}; exit = 0
+       want = @('COMPILED SplitterSetup') }
     @{ name = 'ARM64 PC'; script = $install; case = @{ arch = 'ARM64' }; exit = 1
        want = @('ARM processor (ARM64)', 'Nothing was changed'); not = @('CALL') }
     @{ name = 'ARM64 PC, registry value missing, environment says ARM64'; script = $install; case = @{ arch = $null }; env = 'ARM64'; exit = 1
