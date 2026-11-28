@@ -49,10 +49,10 @@ struct Ring {
         }
         c.Write += frames;
     }
-    void pull(float* s, ULONG frames) {
+    void pull(float* s, ULONG frames, ULONG rest = 0) {
         std::memset(s, 0, sizeof(float) * frames * 2);
         ULONGLONG from;
-        ULONG n = CableCursorTake(&c, frames, &from);
+        ULONG n = CableCursorTake(&c, frames, rest, &from);
         for (ULONG f = 0; f < n; f++) {
             ULONG i = (ULONG)((from + f) & CABLE_RING_MASK) * 2;
             s[2 * f] = buf[i];
@@ -210,6 +210,47 @@ static void test_late_reader_skips_ahead() {
     }
     r.pull(out.data(), 480);
     CHECK(out[0] == (float)(written - CABLE_RING_MARGIN_FRAMES - 480 + 1));
+}
+
+// Like CableTransfer: one transfer of n frames, taken in pieces of 128.
+static void pull_in_pieces(Ring& r, ULONG n, std::vector<float>& out) {
+    out.assign((size_t)n * 2, 0.0f);
+    for (ULONG done = 0; done < n;) {
+        ULONG run = std::min<ULONG>(128, n - done);
+        r.pull(out.data() + (size_t)done * 2, run, n - done - run);
+        done += run;
+    }
+}
+
+static void test_pieces_keep_the_margin() {
+    // priming on a transfer of 480 frames taken in pieces
+    {
+        Ring r;
+        std::vector<float> w, out;
+        ULONGLONG written = 0;
+        ramp(w, written, 1440); r.push(w.data(), 1440); written += 1440;
+        pull_in_pieces(r, 480, out);
+        CHECK(out[0] == (float)(written - CABLE_RING_MARGIN_FRAMES - 480 + 1));
+        CHECK(out[2 * 479] == (float)(written - CABLE_RING_MARGIN_FRAMES));
+        CHECK(r.c.Write - r.c.Read == CABLE_RING_MARGIN_FRAMES);
+    }
+    // a catch-up transfer of 960 frames after the reader was held up 100 ms
+    {
+        Ring r;
+        std::vector<float> w, out;
+        ULONGLONG written = 0;
+        for (int k = 0; k < 10; k++) {
+            ramp(w, written, 480); r.push(w.data(), 480); written += 480;
+            pull_in_pieces(r, 480, out);
+        }
+        for (int k = 0; k < 10; k++) {
+            ramp(w, written, 480); r.push(w.data(), 480); written += 480;
+        }
+        pull_in_pieces(r, 960, out);
+        CHECK(r.c.Primed);
+        CHECK(r.c.Write - r.c.Read == CABLE_RING_MARGIN_FRAMES);
+        CHECK(out[2 * 959] == (float)(written - CABLE_RING_MARGIN_FRAMES));
+    }
 }
 
 static void test_huge_write_keeps_newest() {
@@ -370,6 +411,7 @@ int main() {
     test_jitter_within_margin_never_drops_or_repeats();
     test_writer_stops_reader_runs_dry_then_rewaits();
     test_late_reader_skips_ahead();
+    test_pieces_keep_the_margin();
     test_huge_write_keeps_newest();
     test_formats_round_trip();
     test_integer_audio_passes_unchanged();

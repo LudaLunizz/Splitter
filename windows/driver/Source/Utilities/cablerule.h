@@ -76,34 +76,49 @@ static __inline void CableCursorResetReader(CABLE_CURSOR* c)
     c->Primed = FALSE;
 }
 
-// The reader wants Frames frames. Returns how many of them are audio, read
-// from position *From on; the rest are silence. Advances the read position.
-static __inline ULONG CableCursorTake(CABLE_CURSOR* c, ULONG Frames, ULONGLONG* From)
+// The reader wants Frames frames now, and Rest more right after them in the
+// same transfer (a stream copies a transfer in small pieces, see
+// CMiniportWaveRTStream::CableTransfer). Returns how many of the Frames are
+// audio, read from position *From on; the rest are silence. Advances the
+// read position.
+//
+// Skipping ahead and priming leave room for the whole transfer, Frames +
+// Rest (up to CABLE_RING_MAX_TAKE), so that the margin is still there after
+// its last piece. Counting only the first piece, the later pieces ate into
+// the margin: after a catch-up read of 960 frames in pieces of 128 only 128
+// frames (2.7 ms) were left, and the next timer jitter ran the cable dry.
+static __inline ULONG CableCursorTake(CABLE_CURSOR* c, ULONG Frames, ULONG Rest, ULONGLONG* From)
 {
     ULONGLONG avail = c->Write - c->Read;
+    ULONGLONG want = (ULONGLONG)Frames + Rest;
+
+    if (want > CABLE_RING_MAX_TAKE)
+    {
+        want = Frames > CABLE_RING_MAX_TAKE ? Frames : CABLE_RING_MAX_TAKE;
+    }
 
     *From = c->Read;
 
     // Far behind (stopped, held up, or the writer jumped): skip ahead so
-    // that this read leaves just the margin behind it.
-    if (avail > (ULONGLONG)CABLE_RING_LATE_FRAMES + Frames)
+    // that this transfer leaves just the margin behind it.
+    if (avail > (ULONGLONG)CABLE_RING_LATE_FRAMES + want)
     {
-        avail = (ULONGLONG)CABLE_RING_MARGIN_FRAMES + Frames;
+        avail = (ULONGLONG)CABLE_RING_MARGIN_FRAMES + want;
         c->Read = c->Write - avail;
         *From = c->Read;
     }
 
     // Waiting for the margin (at start, or after running dry): start once
-    // this read can be served and still leave the margin behind it, and
+    // this transfer can be served and still leave the margin behind it, and
     // start exactly there, so every later read finds the margin too.
     if (!c->Primed)
     {
-        if (avail < (ULONGLONG)CABLE_RING_MARGIN_FRAMES + Frames)
+        if (avail < (ULONGLONG)CABLE_RING_MARGIN_FRAMES + want)
         {
             return 0;
         }
-        c->Read = c->Write - CABLE_RING_MARGIN_FRAMES - Frames;
-        avail = (ULONGLONG)CABLE_RING_MARGIN_FRAMES + Frames;
+        c->Read = c->Write - CABLE_RING_MARGIN_FRAMES - want;
+        avail = (ULONGLONG)CABLE_RING_MARGIN_FRAMES + want;
         *From = c->Read;
         c->Primed = TRUE;
     }
