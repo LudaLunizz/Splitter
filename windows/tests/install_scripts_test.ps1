@@ -34,7 +34,8 @@ if ($RunScript) {
     # --- one case: stand-ins, then the script -----------------------------
     $d = @{ build = 22631; is64 = $true; arch = 'AMD64'; start = ' NOEXECUTE=OPTIN TESTSIGNING'; cer = $true;
             before = @(); after = @(); endpoints = @(); packages = @(); reboot = $false;
-            noPnpModule = $false; pnputilExit = 0; certs = @(); installFails = $false; trusted = @() }
+            noPnpModule = $false; pnputilExit = 0; certs = @(); installFails = $false; trusted = @();
+            importFails = ''; addTypeFails = $false }
     $j = $env:SPLITTER_CASE | ConvertFrom-Json -AsHashtable
     foreach ($k in $j.Keys) { $d[$k] = $j[$k] }
     function Dev($x) {
@@ -65,7 +66,7 @@ public static class SplitterSetup {
     [SplitterSetup]::Fails = [bool]$d.installFails
 
     # Functions come before cmdlets and programs of the same name.
-    function global:Add-Type { }
+    function global:Add-Type { if ($global:sc.addTypeFails) { throw 'Cannot add type. Definition of new types is not supported in this language mode.' } }
     function global:Start-Sleep { }
     function global:Get-ItemProperty {
         param([string] $Path, [string] $Name)
@@ -97,7 +98,11 @@ public static class SplitterSetup {
         $x = $global:sc.before | Where-Object { $_.id -eq $InstanceId } | Select-Object -First 1
         [pscustomobject]@{ Data = $x.ver }
     }
-    function global:Import-Certificate { param($FilePath, $CertStoreLocation) Write-Host "CALL trust $CertStoreLocation" }
+    function global:Import-Certificate {
+        param($FilePath, $CertStoreLocation)
+        if ($global:sc.importFails -and "$CertStoreLocation" -like "*\$($global:sc.importFails)") { throw "Access denied ($CertStoreLocation)" }
+        Write-Host "CALL trust $CertStoreLocation"
+    }
     # The package's test certificate is AA11; the case lists the stores
     # that trust it already.
     function global:Get-PfxCertificate { param($FilePath) [pscustomobject]@{ Thumbprint = 'AA11' } }
@@ -196,6 +201,11 @@ $cases = @(
        want = @('CALL trust Cert:\LocalMachine\Root', 'Installing the driver failed', 'CALL remove Cert:\LocalMachine\Root\AA11', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11', 'no longer trusted') }
     @{ name = 'install fails: a certificate trusted before stays'; script = $install; case = @{ installFails = $true; trusted = @('Root') }; exit = 1
        want = @('Installing the driver failed', 'CALL remove Cert:\LocalMachine\TrustedPublisher\AA11'); not = @('CALL remove Cert:\LocalMachine\Root') }
+    @{ name = 'second certificate store fails: the first is taken back'; script = $install; case = @{ importFails = 'TrustedPublisher' }; exit = 1
+       want = @('CALL trust Cert:\LocalMachine\Root', 'Trusting the test certificate failed', 'CALL remove Cert:\LocalMachine\Root\AA11', 'Nothing was installed')
+       not = @('CALL CreateAndInstall', 'CALL Update') }
+    @{ name = 'setup code can''t load: nothing changed'; script = $install; case = @{ addTypeFails = $true }; exit = 1
+       want = @('could not load the setup code', 'Nothing was changed'); not = @('CALL trust', 'CALL CreateAndInstall') }
     @{ name = 'update a disabled device (code 22)'; script = $install; case = @{ reboot = $true; before = @(@{}); after = @(@{ code = 22 }) }; exit = 0
        want = @('CALL Update', 'its device is disabled', 'pnputil /enable-device "ROOT\MEDIA\0000"'); not = @('did not start it', 'restart') }
     @{ name = 'driver not started (code 52)'; script = $install; case = @{ after = @(@{ code = 52 }) }; exit = 1
