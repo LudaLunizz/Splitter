@@ -1798,7 +1798,7 @@ Return Value:
                     );
                 if (!NT_SUCCESS(ntStatus))
                 {
-                    DPF(D_TERSE, ("ConnectTopologies: PcRegisterPhysicalConnection(render) failed, 0x%x", ntStatus));
+                    DPF(D_TERSE, ("ConnectTopologies: PcRegisterPhysicalConnection(capture) failed, 0x%x", ntStatus));
                 }
                 break;
             case CONNECTIONTYPE_WAVE_OUTPUT:
@@ -1813,7 +1813,7 @@ Return Value:
                     );
                 if (!NT_SUCCESS(ntStatus))
                 {
-                    DPF(D_TERSE, ("ConnectTopologies: PcRegisterPhysicalConnection(capture) failed, 0x%x", ntStatus));
+                    DPF(D_TERSE, ("ConnectTopologies: PcRegisterPhysicalConnection(render) failed, 0x%x", ntStatus));
                 }
                 break;
         }
